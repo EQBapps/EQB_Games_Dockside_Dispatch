@@ -26,7 +26,8 @@ namespace Dockside.EditorTools
                 Directory.CreateDirectory(Path.Combine(Root, dir));
             AssetDatabase.Refresh();
 
-            var lit = CreateMaterial(Root + "/Materials/M_Lit.mat", "Universal Render Pipeline/Lit");
+            // "Lit" objects use the flat-shaded look (exact palette colours, darker camera-facing sides).
+            var lit = CreateMaterial(Root + "/Materials/M_Lit.mat", "Dockside/Flat");
             var unlit = CreateMaterial(Root + "/Materials/M_Unlit.mat", "Universal Render Pipeline/Unlit");
 
             var palettePath = Root + "/Settings/Palette.asset";
@@ -57,7 +58,8 @@ namespace Dockside.EditorTools
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-            PlayerSettings.bundleVersion = "0.1.0";
+            PlayerSettings.bundleVersion = "0.2.0";
+            PlayerSettings.Android.bundleVersionCode = 2;   // must increase for each build installed over the last
 
             ConfigureSplash();
             ConfigureMobileRendering();
@@ -67,17 +69,55 @@ namespace Dockside.EditorTools
         }
 
         public const string LogoPath = Root + "/Branding/EQB_Games_Logo.png";
+        public const string GameLogoPath = Root + "/Branding/DocksideDispatch_Logo.png";
+        public const string GameIconPath = Root + "/Branding/DocksideDispatch_Icon.png";
 
-        /// <summary>Boot splash: the EQB Games logo on the dusk-plum background (Unity logo off, allowed from Unity 6).</summary>
-        [MenuItem("Dockside/Configure Splash")]
+        /// <summary>
+        /// Boot splash: the EQB Games logo, then the Dockside Dispatch logo, on the dusk-plum background
+        /// (Unity logo off, allowed from Unity 6). Also sets the app icon.
+        /// </summary>
+        [MenuItem("Dockside/Configure Splash and Icon")]
         public static void ConfigureSplash()
         {
-            if (!File.Exists(LogoPath))
+            var logos = new System.Collections.Generic.List<PlayerSettings.SplashScreenLogo>();
+            foreach (var (path, seconds) in new[] { (LogoPath, 2.0f), (GameLogoPath, 2.5f) })
             {
-                Debug.LogWarning($"[Dockside] Splash logo not found at {LogoPath}; splash left unchanged.");
-                return;
+                var sprite = ImportSprite(path);
+                if (sprite != null) logos.Add(PlayerSettings.SplashScreenLogo.Create(seconds, sprite));
+                else Debug.LogWarning($"[Dockside] Splash logo not found at {path}.");
             }
-            var importer = (TextureImporter)AssetImporter.GetAtPath(LogoPath);
+            if (logos.Count > 0)
+            {
+                PlayerSettings.SplashScreen.show = true;
+                PlayerSettings.SplashScreen.showUnityLogo = false;
+                PlayerSettings.SplashScreen.unityLogoStyle = PlayerSettings.SplashScreen.UnityLogoStyle.LightOnDark;
+                PlayerSettings.SplashScreen.animationMode = PlayerSettings.SplashScreen.AnimationMode.Dolly;
+                PlayerSettings.SplashScreen.backgroundColor = Palette.Hex("2A1B33");
+                PlayerSettings.SplashScreen.overlayOpacity = 0f;
+                PlayerSettings.SplashScreen.drawMode = PlayerSettings.SplashScreen.DrawMode.AllSequential;
+                PlayerSettings.SplashScreen.logos = logos.ToArray();
+            }
+
+            if (File.Exists(GameIconPath))
+            {
+                var importer = (TextureImporter)AssetImporter.GetAtPath(GameIconPath);
+                if (importer.maxTextureSize != 1024 || importer.textureCompression != TextureImporterCompression.Uncompressed)
+                {
+                    importer.textureType = TextureImporterType.Default;
+                    importer.maxTextureSize = 1024;
+                    importer.textureCompression = TextureImporterCompression.Uncompressed;
+                    importer.SaveAndReimport();
+                }
+                var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(GameIconPath);
+                PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+            }
+            Debug.Log($"[Dockside] Splash: {logos.Count} logo(s); app icon {(File.Exists(GameIconPath) ? "set" : "missing")}.");
+        }
+
+        private static Sprite ImportSprite(string path)
+        {
+            if (!File.Exists(path)) return null;
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
             if (importer.textureType != TextureImporterType.Sprite || importer.maxTextureSize != 2048)
             {
                 importer.textureType = TextureImporterType.Sprite;
@@ -87,16 +127,7 @@ namespace Dockside.EditorTools
                 importer.textureCompression = TextureImporterCompression.CompressedHQ;
                 importer.SaveAndReimport();
             }
-            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(LogoPath);
-            PlayerSettings.SplashScreen.show = true;
-            PlayerSettings.SplashScreen.showUnityLogo = false;
-            PlayerSettings.SplashScreen.unityLogoStyle = PlayerSettings.SplashScreen.UnityLogoStyle.LightOnDark;
-            PlayerSettings.SplashScreen.animationMode = PlayerSettings.SplashScreen.AnimationMode.Dolly;
-            PlayerSettings.SplashScreen.backgroundColor = Palette.Hex("2A1B33");
-            PlayerSettings.SplashScreen.overlayOpacity = 0f;
-            PlayerSettings.SplashScreen.drawMode = PlayerSettings.SplashScreen.DrawMode.AllSequential;
-            PlayerSettings.SplashScreen.logos = new[] { PlayerSettings.SplashScreenLogo.Create(2.5f, sprite) };
-            Debug.Log("[Dockside] Splash screen set to the EQB Games logo.");
+            return AssetDatabase.LoadAssetAtPath<Sprite>(path);
         }
 
         /// <summary>

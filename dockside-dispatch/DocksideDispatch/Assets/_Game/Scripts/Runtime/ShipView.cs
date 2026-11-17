@@ -103,20 +103,19 @@ namespace Dockside
 
             // Colour symbol and load counter on the hull side ("● 2/4"), readable without relying on colour.
             float labelX = deckCenter - 0.02f;
-            var sym = Shapes.Symbol(color, transform, new Vector3(labelX - 0.2f, 0.03f, -Depth * 0.5f - 0.025f), 0.24f, white);
+            var sym = Shapes.Symbol(color, transform, new Vector3(labelX - 0.4f, 0.06f, -Depth * 0.5f - 0.025f), 0.24f, white);
             sym.transform.localRotation = Quaternion.Euler(-90, 0, 0);
             var labelGo = new GameObject("LoadLabel");
             labelGo.transform.SetParent(transform, false);
-            labelGo.transform.localPosition = new Vector3(labelX + 0.13f, 0.03f, -Depth * 0.5f - 0.03f);
+            labelGo.transform.localPosition = new Vector3(labelX + 0.12f, 0.06f, -Depth * 0.5f - 0.03f);
             _label = labelGo.AddComponent<TextMesh>();
-            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            var font = UiFactory.FontBold;
             _label.font = font;
             labelGo.GetComponent<MeshRenderer>().sharedMaterial = font.material;
             _label.anchor = TextAnchor.MiddleCenter;
             _label.alignment = TextAlignment.Center;
             _label.fontSize = 96;
-            _label.characterSize = 0.034f;
-            _label.fontStyle = FontStyle.Bold;
+            _label.characterSize = 0.042f;
             _label.color = white;
             SetLoaded(0);
 
@@ -125,6 +124,10 @@ namespace Dockside
                 transform, Vector3.zero, new Vector3(L + 0.3f, 1.22f, 1f), false).transform;
             _foam.localRotation = Quaternion.Euler(90, 0, 0);
             _foamScale = _foam.localScale;
+            // The hull side faces the camera, so keep it close to full colour (the mockup's flat hulls).
+            var shade = new Vector4(1f, 0.97f, 0.86f, 0.9f);
+            foreach (var r in GetComponentsInChildren<MeshRenderer>())
+                if (r.transform != _foam && r.GetComponent<TextMesh>() == null) r.sharedMaterial = Shapes.Reshade(r.sharedMaterial, shade);
             transform.localRotation = Quaternion.Euler(Tilt, 0, 0);
         }
 

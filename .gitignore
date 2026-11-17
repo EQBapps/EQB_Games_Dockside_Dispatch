@@ -46,3 +46,7 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ---- Local screen recordings (play-test footage stays out of git) ----
+*.mp4
+*.mov

@@ -78,6 +78,42 @@ namespace Dockside
             return this;
         }
 
+        /// <summary>Dashed outline of a rounded rectangle centred on the origin (dash and gap measured along the edge).</summary>
+        public FlatMesh DashedRoundRect(float w, float h, float r, float thickness, float dash, float gap)
+        {
+            r = Mathf.Min(r, Mathf.Min(w, h) * 0.5f);
+            var path = new List<Vector2>();
+            void Arc(Vector2 c, float a0)
+            {
+                for (int i = 0; i <= 8; i++)
+                {
+                    float a = (a0 + 90f * i / 8f) * Mathf.Deg2Rad;
+                    path.Add(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+                }
+            }
+            float hw = w * 0.5f - r, hh = h * 0.5f - r;
+            Arc(new Vector2(hw, -hh), -90f); Arc(new Vector2(hw, hh), 0f); Arc(new Vector2(-hw, hh), 90f); Arc(new Vector2(-hw, -hh), 180f);
+            path.Add(path[0]);
+            // Walk the path, emitting short straight pieces while inside a dash.
+            float period = dash + gap, s0 = 0f;
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                Vector2 a = path[i], b = path[i + 1];
+                float len = Vector2.Distance(a, b);
+                float t = 0f;
+                while (t < len)
+                {
+                    float phase = (s0 + t) % period;
+                    float step = phase < dash ? Mathf.Min(dash - phase, len - t) : Mathf.Min(period - phase, len - t);
+                    if (phase < dash && step > 1e-4f)
+                        Line(Vector2.Lerp(a, b, t / len), Vector2.Lerp(a, b, (t + step) / len), thickness);
+                    t += Mathf.Max(step, 1e-4f);
+                }
+                s0 += len;
+            }
+            return this;
+        }
+
         public Mesh Build(string name)
         {
             var m = new Mesh { name = name };

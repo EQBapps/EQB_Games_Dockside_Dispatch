@@ -5,8 +5,11 @@ Mobile games division of EQB Business Solutions, building hybrid-casual puzzle g
 This repository holds the market research, the art direction and the first game prototype, **Dockside Dispatch**.
 
 <p align="center">
-  <img src="dockside-dispatch/Screenshots/art_pass_l14_wide_yard.png" width="280" alt="Dockside Dispatch, level 14">
-  <img src="dockside-dispatch/Screenshots/art_pass_l5_midgame.png" width="280" alt="Dockside Dispatch, mid-game">
+  <img src="branding/dockside-dispatch/DocksideDispatch_Logo.png" width="420" alt="Dockside Dispatch logo">
+</p>
+<p align="center">
+  <img src="dockside-dispatch/Screenshots/v3_l14.png" width="260" alt="Dockside Dispatch, level 14">
+  <img src="dockside-dispatch/Screenshots/v3_l14_midgame.png" width="260" alt="Dockside Dispatch, mid-game">
 </p>
 
 ## Repository layout
@@ -17,7 +20,7 @@ This repository holds the market research, the art direction and the first game 
 | `dockside-dispatch/art-direction/` | Four art directions for Dockside Dispatch. **Option A, Golden Hour Harbour**, was chosen. |
 | `dockside-dispatch/DocksideDispatch/` | The Unity project. |
 | `dockside-dispatch/Screenshots/` | Screenshots from automated play-tests. |
-| `branding/` | EQB Games logo: the original, plus a transparent cut-out used for the splash screen. |
+| `branding/` | EQB Games logo (original and transparent cut-out). `branding/dockside-dispatch/` has the game logo and app icon, with the HTML sources they were rendered from. |
 
 ## Dockside Dispatch
 
@@ -56,10 +59,12 @@ There are 30 levels, baked to `Assets/_Game/Resources/Levels/level_NN.json`. Aft
 ### Tech
 
 - **Engine:** Unity **6000.3.28f1** (Unity 6.3 LTS) with URP and the Input System. Portrait. Android uses IL2CPP and ARM64.
-- **Art:** built in code from primitives, generated meshes and procedural textures, so there are no imported art assets yet:
-  - containers use a generated detail texture;
+- **Art:** built in code from generated meshes and procedural textures, so there are no imported 3D models yet:
+  - most objects use the `Dockside/Flat` shader, which shows exact palette colours and darkens only the camera-facing sides, matching the flat 2D art direction (no lighting or shadow maps);
+  - containers are rounded blocks with a generated corrugation texture;
   - the water is the custom `Dockside/Water` shader;
   - the sky and port silhouette are flat generated meshes.
+- **Font:** [Fredoka](https://fonts.google.com/specimen/Fredoka) SemiBold and Bold, under the SIL Open Font License (`Assets/_Game/Resources/Fonts`). The UI icons are in `Resources/UI`.
 - **UI:** uGUI, built at runtime (`HudView`, `UiFactory`).
 - **Data:** progress, coins and booster counts are stored in PlayerPrefs (`SaveData`). Analytics are a stub that logs `[Analytics]` events.
 
@@ -68,7 +73,8 @@ Assets/_Game/
   Scripts/Core/      Pure C# game rules, no UnityEngine: LevelData, GameSession, Solver, LevelGenerator
   Scripts/Runtime/   Presentation: GameController, views (containers, ships, environment), HUD, palette, tweens
   Scripts/Editor/    ProjectSetup (scene, materials, palette, splash, mobile rendering), BuildTools (Android APK)
-  Shaders/           Water.shader
+  Shaders/           Flat.shader (flat palette shading), Water.shader
+  Branding/          Splash logos and the app icon
   Tests/EditMode/    Rules and level-generation tests
   Resources/Levels/  Baked level JSON
 ```
@@ -98,7 +104,7 @@ The **Dockside** menu in the editor has these commands:
 
 | Menu item | Purpose |
 |---|---|
-| Setup Project | Recreates the materials, palette and Main scene, and sets player settings, splash and mobile rendering |
+| Setup Project | Recreates the materials, palette and Main scene, and sets player settings, splash, app icon and mobile rendering |
 | Bake Levels | Regenerates `level_01..30.json` |
 | Report Levels | Logs size and solver statistics for every level |
 | Build Android APK | Builds `Builds/Android/DocksideDispatch-<version>-<code>.apk` |
@@ -116,7 +122,7 @@ The APK is signed with Unity's debug key, so it is for sideloading onto test pho
 
 ### Status and next steps
 
-The prototype is playable from start to finish. The art is still placeholder, built from primitives, and there is no audio yet.
+The prototype is playable from start to finish and has been installed and played on an Android phone (v0.2.0). The art is generated in code (final art to follow) and there is no audio yet.
 
 Next steps:
 

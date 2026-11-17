@@ -27,7 +27,7 @@ namespace Dockside
                 cam = camGo.AddComponent<Camera>();
             }
 
-            // Warm, low "golden hour" sun from the left, soft shadows.
+            // Directional light kept for any lit materials; the game's own shaders are unlit/flat.
             var sun = FindFirstObjectByType<Light>();
             if (sun == null || sun.type != LightType.Directional)
             {
@@ -36,8 +36,8 @@ namespace Dockside
             }
             sun.color = palette.sunLight;
             sun.intensity = 1.25f;
-            sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.55f;
+            // The Flat shader draws exact palette colours with no lighting, so shadow maps would be wasted work.
+            sun.shadows = LightShadows.None;
             sun.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
 
             RenderSettings.ambientMode = AmbientMode.Flat;

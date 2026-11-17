@@ -358,42 +358,55 @@ namespace Dockside
         }
     }
 
-    /// <summary>Dashed outlines for the holding-bay slots.</summary>
+    /// <summary>The holding bay: white dashed slot outlines on the quay and a "HOLDING BAY · used / capacity" label.</summary>
     public class BufferSlotsView : MonoBehaviour
     {
         private Palette _pal;
         private readonly List<GameObject> _slots = new List<GameObject>();
+        private TextMesh _label;
+        private int _capacity, _used;
 
-        public void Init(Palette pal) { _pal = pal; }
+        public void Init(Palette pal)
+        {
+            _pal = pal;
+            var go = new GameObject("BayLabel");
+            go.transform.SetParent(transform, false);
+            go.transform.localPosition = new Vector3(0, 0.106f, BoardLayout.BufferZ + 0.6f);
+            go.transform.localRotation = Quaternion.Euler(90, 0, 0);
+            _label = go.AddComponent<TextMesh>();
+            _label.font = UiFactory.FontBold;
+            go.GetComponent<MeshRenderer>().sharedMaterial = _label.font.material;
+            _label.fontSize = 96;
+            _label.characterSize = 0.033f;
+            _label.anchor = TextAnchor.MiddleCenter;
+            _label.alignment = TextAlignment.Center;
+            _label.color = Palette.Hex("6B4126");
+        }
 
         public void SetCapacity(int capacity)
         {
             foreach (var s in _slots) Destroy(s);
             _slots.Clear();
+            _capacity = capacity;
             float pitch = BoardLayout.BufferPitch(capacity);
-            float w = pitch - 0.12f, d = 0.95f;
+            float w = pitch - 0.14f, d = 0.92f;
+            var outline = new FlatMesh().DashedRoundRect(w, d, 0.13f, 0.045f, 0.11f, 0.075f).Build("BaySlot");
+            var color = Color.Lerp(_pal.quay, Color.white, 0.78f);
             for (int i = 0; i < capacity; i++)
             {
                 var p = BoardLayout.BufferPosition(i, 1, capacity);
-                var slot = new GameObject($"Slot_{i}");
-                slot.transform.SetParent(transform, false);
-                slot.transform.localPosition = new Vector3(p.x, 0.11f, p.z);
-                var c = Color.Lerp(_pal.quay, _pal.quayEdge, 0.7f);
-                // Dashed frame: short dashes along each edge.
-                for (int j = 0; j < 4; j++)
-                {
-                    float fx = -w * 0.5f + w * (j + 0.5f) / 4f;
-                    Shapes.Box("Dash", slot.transform, new Vector3(fx, 0, -d * 0.5f), new Vector3(w / 4f * 0.6f, 0.01f, 0.05f), c, true, false);
-                    Shapes.Box("Dash", slot.transform, new Vector3(fx, 0, d * 0.5f), new Vector3(w / 4f * 0.6f, 0.01f, 0.05f), c, true, false);
-                }
-                for (int j = 0; j < 3; j++)
-                {
-                    float fz = -d * 0.5f + d * (j + 0.5f) / 3f;
-                    Shapes.Box("Dash", slot.transform, new Vector3(-w * 0.5f, 0, fz), new Vector3(0.05f, 0.01f, d / 3f * 0.6f), c, true, false);
-                    Shapes.Box("Dash", slot.transform, new Vector3(w * 0.5f, 0, fz), new Vector3(0.05f, 0.01f, d / 3f * 0.6f), c, true, false);
-                }
+                var slot = Shapes.MakeWith($"Slot_{i}", outline, Shapes.Mat(color, true), transform, new Vector3(p.x, 0.105f, p.z), Vector3.one, false);
+                slot.transform.localRotation = Quaternion.Euler(90, 0, 0);
                 _slots.Add(slot);
             }
+            Refresh();
+        }
+
+        public void SetUsed(int used) { _used = used; Refresh(); }
+
+        private void Refresh()
+        {
+            if (_label) _label.text = $"HOLDING BAY  ·  {_used} / {_capacity}";
         }
     }
 }

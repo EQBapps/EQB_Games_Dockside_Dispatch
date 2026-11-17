@@ -18,6 +18,7 @@ namespace Dockside
             _palette = palette;
             Materials.Clear();
             TexMaterials.Clear();
+            Reshaded.Clear();
         }
 
         public static Mesh CubeMesh => _cube ? _cube : (_cube = BuiltIn(PrimitiveType.Cube));
@@ -44,6 +45,19 @@ namespace Dockside
             if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", texture);
             if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", texture);
             TexMaterials[(color, unlit, texture)] = m;
+            return m;
+        }
+
+        private static readonly Dictionary<(Material, Vector4), Material> Reshaded = new Dictionary<(Material, Vector4), Material>();
+
+        /// <summary>Copy of a flat material with different face shading (e.g. ships, whose hull side faces the camera).</summary>
+        public static Material Reshade(Material source, Vector4 shade)
+        {
+            if (source == null || !source.HasProperty("_Shade")) return source;
+            if (Reshaded.TryGetValue((source, shade), out var m) && m) return m;
+            m = new Material(source) { name = source.name + "_Reshaded" };
+            m.SetVector("_Shade", shade);
+            Reshaded[(source, shade)] = m;
             return m;
         }
 
@@ -115,7 +129,7 @@ namespace Dockside
             if (baseMat != null) m = new Material(baseMat);
             else
             {
-                var shader = Shader.Find(unlit ? "Universal Render Pipeline/Unlit" : "Universal Render Pipeline/Lit");
+                var shader = Shader.Find(unlit ? "Universal Render Pipeline/Unlit" : "Dockside/Flat");
                 if (shader == null) shader = Shader.Find("Standard");
                 m = new Material(shader);
             }

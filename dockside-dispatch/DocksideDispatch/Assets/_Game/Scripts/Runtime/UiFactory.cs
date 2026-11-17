@@ -9,9 +9,13 @@ namespace Dockside
     public static class UiFactory
     {
         private static Sprite _rounded;
-        private static Font _font;
+        private static Font _font, _fontBold;
 
-        public static Font Font => _font ? _font : (_font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        /// <summary>Fredoka SemiBold (body text), as in the art direction. Falls back to Unity's built-in font.</summary>
+        public static Font Font => _font ? _font : (_font = Resources.Load<Font>("Fonts/Fredoka-SemiBold") ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+
+        /// <summary>Fredoka Bold (titles, numbers, labels).</summary>
+        public static Font FontBold => _fontBold ? _fontBold : (_fontBold = Resources.Load<Font>("Fonts/Fredoka-Bold") ?? Font);
 
         /// <summary>White rounded-rectangle sprite, 9-sliced, generated at runtime.</summary>
         public static Sprite Rounded
@@ -102,10 +106,11 @@ namespace Dockside
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var t = go.AddComponent<Text>();
-            t.font = Font;
+            // Real bold/semibold font files instead of synthetic bold, so strokes stay clean.
+            t.font = style == FontStyle.Bold ? FontBold : Font;
             t.text = text;
             t.fontSize = size;
-            t.fontStyle = style;
+            t.fontStyle = FontStyle.Normal;
             t.color = color;
             t.alignment = anchor;
             t.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -140,6 +145,16 @@ namespace Dockside
         public static void Icon(string kind, Transform parent, Color color, float size)
         {
             var root = Rect("Icon_" + kind, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
+            // Outline icons drawn to match the art direction (Resources/UI/icon_*.png, white, tinted here).
+            var tex = Resources.Load<Texture2D>("UI/icon_" + kind);
+            if (tex != null)
+            {
+                var img = root.gameObject.AddComponent<Image>();
+                img.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                img.color = color;
+                img.raycastTarget = false;
+                return;
+            }
             void Bar(float x, float y, float w, float h, float rot = 0)
             {
                 var r = Rect("Bar", root, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(x, y) * size, new Vector2(w, h) * size);

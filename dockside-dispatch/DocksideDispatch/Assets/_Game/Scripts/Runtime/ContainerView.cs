@@ -86,9 +86,8 @@ namespace Dockside
                 tm.alignment = TextAlignment.Center;
                 tm.characterSize = 0.09f;
                 tm.fontSize = 64;
-                tm.fontStyle = FontStyle.Bold;
                 tm.color = Color.white;
-                var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                var font = UiFactory.FontBold;
                 tm.font = font;
                 _question.GetComponent<MeshRenderer>().sharedMaterial = font.material;
             }
@@ -119,7 +118,8 @@ namespace Dockside
             Color baseColor = _revealed ? _palette.ContainerColor(_color) : _palette.hidden;
             if (_lock && _lock.activeSelf) baseColor = Color.Lerp(baseColor, _palette.locked, 0.65f);
             // Shared, cached materials (no property blocks) so the SRP Batcher can batch every container.
-            var c = _dim ? Color.Lerp(baseColor * 0.78f, Palette.Hex("6E5D57"), 0.12f) : baseColor;
+            // Like the mockup: blocked containers are only slightly darker and less saturated.
+            var c = _dim ? Color.Lerp(baseColor * 0.86f, new Color(0.45f, 0.4f, 0.38f), 0.1f) : baseColor;
             c.a = 1f;
             _bodyRenderer.sharedMaterial = Shapes.MatTex(c, _texture);
             if (_symbol) _symbol.SetActive(_revealed);

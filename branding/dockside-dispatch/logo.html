@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face { font-family: "Fredoka"; src: url("Fredoka-Bold.ttf"); font-weight: 700; }
+@font-face { font-family: "Fredoka"; src: url("Fredoka-SemiBold.ttf"); font-weight: 600; }
+html, body { margin: 0; background: transparent; }
+.stage { position: relative; width: 1200px; height: 860px; font-family: "Fredoka"; }
+/* ---- emblem ---- */
+.sun { position: absolute; left: 430px; top: 40px; width: 340px; height: 340px; border-radius: 50%;
+       background: radial-gradient(circle at 50% 42%, #FFF1C4 0%, #FFD08F 46%, #FF9F7E 100%); }
+.sea { position: absolute; left: 380px; top: 300px; width: 440px; height: 64px; border-radius: 32px;
+       background: linear-gradient(180deg, #2FA39E, #1B7E87); }
+.wave { position: absolute; height: 9px; border-radius: 5px; background: #A6E3D9; }
+.box { position: absolute; border-radius: 16px;
+       background: repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 22px, rgba(0,0,0,0.14) 22px 28px), var(--c);
+       box-shadow: 0 14px 0 var(--d), 0 14px 0 6px #4E3F3B, 0 0 0 6px #4E3F3B; }
+.box svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.hull { position: absolute; left: 404px; top: 268px; width: 392px; height: 70px; background: #E8463F;
+        clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%); }
+.hullOutline { position: absolute; left: 396px; top: 262px; width: 408px; height: 82px; background: #4E3F3B;
+        clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%); }
+.stripe { position: absolute; left: 430px; top: 284px; width: 340px; height: 8px; border-radius: 4px; background: #FFF4E2; opacity: .9 }
+.crane { position: absolute; background: #F2A23A; border: 6px solid #4E3F3B; border-radius: 6px; }
+.cable { position: absolute; left: 664px; top: 34px; width: 7px; height: 52px; background: #4E3F3B; }
+/* ---- wordmark ---- */
+.word { position: absolute; left: 0; right: 0; text-align: center; font-weight: 700; }
+.dockside { top: 352px; font-size: 196px; letter-spacing: 4px; color: #FFF4E2;
+            -webkit-text-stroke: 26px #4E3F3B; paint-order: stroke fill;
+            text-shadow: 0 16px 0 #4E3F3B; line-height: 1; }
+.dockside span { color: #FFF4E2; }
+.ribbonWrap { position: absolute; left: 50%; top: 590px; transform: translateX(-50%) rotate(-2deg); }
+.ribbon { position: relative; padding: 14px 64px 22px; background: #E8463F; border: 7px solid #4E3F3B; border-radius: 22px;
+          box-shadow: 0 12px 0 #B02E2A, 0 12px 0 7px #4E3F3B;
+          font-size: 104px; font-weight: 700; color: #FFFFFF; letter-spacing: 12px; line-height: 1; white-space: nowrap; }
+.tail { position: absolute; top: 34px; width: 70px; height: 92px; background: #B02E2A; border: 7px solid #4E3F3B; z-index: -1; }
+.tail.l { left: -56px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 34% 50%); }
+.tail.r { right: -56px; clip-path: polygon(0 0, 100% 0, 66% 50%, 100% 100%, 0 100%); }
+</style></head>
+<body><div class="stage"><div style="position:absolute; inset:0; transform: translateY(34px)">
+  <div class="sun"></div>
+  <div class="sea"></div>
+  <div class="wave" style="left:420px; top:330px; width:70px"></div>
+  <div class="wave" style="left:710px; top:322px; width:60px"></div>
+  <!-- ship carrying two containers -->
+  <div class="hullOutline"></div>
+  <div class="hull"></div>
+  <div class="stripe"></div>
+  <div class="box" style="--c:#2F7FE0; --d:#1F58A6; left:502px; top:178px; width:124px; height:72px">
+    <svg width="40" height="40" viewBox="0 0 16 16" fill="#fff"><path d="M8 2.5 13.5 13h-11z"/></svg></div>
+  <div class="box" style="--c:#2DB37A; --d:#1E8259; left:644px; top:178px; width:124px; height:72px">
+    <svg width="38" height="38" viewBox="0 0 16 16" fill="#fff"><path d="M8 1.8 14.2 8 8 14.2 1.8 8z"/></svg></div>
+  <!-- bridge -->
+  <div style="position:absolute; left:420px; top:178px; width:62px; height:84px; background:#FFFFFF; border:6px solid #4E3F3B; border-radius:8px 8px 0 0;"></div>
+  <div style="position:absolute; left:432px; top:194px; width:13px; height:12px; background:#5BB8D9; border-radius:3px"></div>
+  <div style="position:absolute; left:457px; top:194px; width:13px; height:12px; background:#5BB8D9; border-radius:3px"></div>
+  <!-- crane arm, cable and the container being lowered -->
+  <div class="crane" style="left:520px; top:6px; width:290px; height:26px"></div>
+  <div class="crane" style="left:796px; top:6px; width:26px; height:300px"></div>
+  <div class="crane" style="left:776px; top:290px; width:66px; height:22px; background:#C97D1E"></div>
+  <div class="cable"></div>
+  <div class="box" style="--c:#F7C431; --d:#C9952A; left:596px; top:86px; width:142px; height:66px; transform: rotate(-3deg)">
+    <svg width="34" height="34" viewBox="0 0 16 16" fill="#fff"><rect x="3" y="3" width="10" height="10" rx="1"/></svg></div>
+  <!-- wordmark -->
+  <div class="word dockside">DOCKSIDE</div>
+  <div class="ribbonWrap"><div class="ribbon"><div class="tail l"></div><div class="tail r"></div>DISPATCH</div></div>
+</div></div></body></html>

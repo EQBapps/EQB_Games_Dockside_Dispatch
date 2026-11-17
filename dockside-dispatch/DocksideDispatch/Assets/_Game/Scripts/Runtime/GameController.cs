@@ -79,6 +79,7 @@ namespace Dockside
             _bufferSlots.transform.SetParent(_levelRoot, false);
             _bufferSlots.Init(_pal);
             _bufferSlots.SetCapacity(_session.BufferCapacity);
+            _bufferSlots.SetUsed(SlotOfViewItem(_viewBuffer.Count));
 
             _yardRoot = new GameObject("Yard").transform;
             _yardRoot.SetParent(_levelRoot, false);
@@ -253,6 +254,7 @@ namespace Dockside
                     int cap = _session.BufferCapacity;
                     var target = BoardLayout.BufferPosition(SlotOfViewItem(_viewBuffer.Count - 1), view.Length, cap);
                     yield return Tween.Arc(view.transform, target, 1.4f, 0.26f, BoardLayout.BufferScale(view.Length, cap), Quaternion.identity);
+                    _bufferSlots.SetUsed(SlotOfViewItem(_viewBuffer.Count));
                     StartCoroutine(Tween.Pop(view.transform, 0.2f, 0.16f));
                     break;
                 }
@@ -329,6 +331,7 @@ namespace Dockside
                 StartCoroutine(Tween.Move(v.transform, to, duration));
                 StartCoroutine(Tween.ScaleTo(v.transform, BoardLayout.BufferScale(v.Length, cap), duration));
             }
+            _bufferSlots.SetUsed(SlotOfViewItem(_viewBuffer.Count));
             yield return new WaitForSeconds(duration);
         }
 
