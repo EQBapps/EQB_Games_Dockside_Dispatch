@@ -38,6 +38,7 @@ namespace Dockside.EditorTools
             }
             palette.litBase = lit;
             palette.unlitBase = unlit;
+            palette.waterMaterial = CreateMaterial(Root + "/Materials/M_Water.mat", "Dockside/Water");
             EditorUtility.SetDirty(palette);
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
@@ -58,8 +59,64 @@ namespace Dockside.EditorTools
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.bundleVersion = "0.1.0";
 
+            ConfigureSplash();
+            ConfigureMobileRendering();
+
             AssetDatabase.SaveAssets();
             Debug.Log($"[Dockside] Project setup complete: scene {ScenePath}, bundle id {BundleId}.");
+        }
+
+        public const string LogoPath = Root + "/Branding/EQB_Games_Logo.png";
+
+        /// <summary>Boot splash: the EQB Games logo on the dusk-plum background (Unity logo off, allowed from Unity 6).</summary>
+        [MenuItem("Dockside/Configure Splash")]
+        public static void ConfigureSplash()
+        {
+            if (!File.Exists(LogoPath))
+            {
+                Debug.LogWarning($"[Dockside] Splash logo not found at {LogoPath}; splash left unchanged.");
+                return;
+            }
+            var importer = (TextureImporter)AssetImporter.GetAtPath(LogoPath);
+            if (importer.textureType != TextureImporterType.Sprite || importer.maxTextureSize != 2048)
+            {
+                importer.textureType = TextureImporterType.Sprite;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+                importer.maxTextureSize = 2048;
+                importer.textureCompression = TextureImporterCompression.CompressedHQ;
+                importer.SaveAndReimport();
+            }
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(LogoPath);
+            PlayerSettings.SplashScreen.show = true;
+            PlayerSettings.SplashScreen.showUnityLogo = false;
+            PlayerSettings.SplashScreen.unityLogoStyle = PlayerSettings.SplashScreen.UnityLogoStyle.LightOnDark;
+            PlayerSettings.SplashScreen.animationMode = PlayerSettings.SplashScreen.AnimationMode.Dolly;
+            PlayerSettings.SplashScreen.backgroundColor = Palette.Hex("2A1B33");
+            PlayerSettings.SplashScreen.overlayOpacity = 0f;
+            PlayerSettings.SplashScreen.drawMode = PlayerSettings.SplashScreen.DrawMode.AllSequential;
+            PlayerSettings.SplashScreen.logos = new[] { PlayerSettings.SplashScreenLogo.Create(2.5f, sprite) };
+            Debug.Log("[Dockside] Splash screen set to the EQB Games logo.");
+        }
+
+        /// <summary>
+        /// Phone rendering: full resolution (the template renders mobile at 0.8x, which looks soft) and 4x MSAA
+        /// for clean edges. Tile-based mobile GPUs resolve MSAA cheaply.
+        /// </summary>
+        [MenuItem("Dockside/Configure Mobile Rendering")]
+        public static void ConfigureMobileRendering()
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset>("Assets/Settings/Mobile_RPAsset.asset");
+            if (asset == null)
+            {
+                Debug.LogWarning("[Dockside] Mobile_RPAsset not found; mobile rendering left unchanged.");
+                return;
+            }
+            asset.renderScale = 1f;
+            asset.msaaSampleCount = 4;
+            asset.shadowDistance = 30f;
+            EditorUtility.SetDirty(asset);
+            Debug.Log("[Dockside] Mobile rendering: render scale 1.0, MSAA 4x, shadow distance 30.");
         }
 
         private static Material CreateMaterial(string path, string shaderName)

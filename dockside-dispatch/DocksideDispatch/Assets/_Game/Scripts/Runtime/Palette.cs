@@ -9,6 +9,29 @@ namespace Dockside
         [Header("Base materials (URP)")]
         public Material litBase;
         public Material unlitBase;
+        public Material waterMaterial;   // Dockside/Water shader (created by Dockside > Setup Project)
+
+        [Header("Sunset sky")]
+        public Color skyZenith = Hex("B86A9A");
+        public Color skyHigh = Hex("E9809A");
+        public Color skyMid = Hex("FF9F7E");
+        public Color skyHorizon = Hex("FFD08F");
+        public Color sunGlow = Hex("FFE7A6");
+        public Color cloudLight = Hex("FFC9A8");
+        public Color cloudShade = Hex("E8939C");
+
+        [Header("Port silhouette")]
+        public Color silhouetteFar = Hex("D9868F");
+        public Color silhouetteNear = Hex("9C5274");
+        public Color silhouetteLight = Hex("FFE6A0");
+
+        [Header("Water")]
+        public Color waterShallow = Hex("2FA39E");
+        public Color waterDeep = Hex("1B7E87");
+        public Color waterHorizon = Hex("F2B08E");
+        public Color waterGlitter = Hex("FFE7A3");
+        public Color foam = Hex("F3FBF6");
+        public Color fender = Hex("3A3133");
 
         [Header("Containers (index = colour id)")]
         public Color[] containerColors =

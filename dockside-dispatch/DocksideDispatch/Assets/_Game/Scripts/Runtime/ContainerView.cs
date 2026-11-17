@@ -12,12 +12,11 @@ namespace Dockside
 
         private Palette _palette;
         private Transform _body;                 // scaled to the container size; children are in unit space
-        private readonly List<Renderer> _tinted = new List<Renderer>();
-        private readonly List<Color> _tintBase = new List<Color>();
+        private Renderer _bodyRenderer;
+        private Texture2D _texture;
         private GameObject _symbol, _lock, _key, _question;
         private int _color;
         private bool _revealed, _dim;
-        private MaterialPropertyBlock _mpb;
 
         public static ContainerView Create(Transform parent, ContainerSpec spec, Palette palette)
         {
@@ -33,7 +32,6 @@ namespace Dockside
             Id = spec.id;
             Length = spec.length;
             _palette = palette;
-            _mpb = new MaterialPropertyBlock();
             transform.localScale = BoardLayout.ContainerScale(spec.length);
 
             // Collider on the root for taps (unit box, scaled with the root).
@@ -41,19 +39,10 @@ namespace Dockside
             col.size = new Vector3(1.05f, 1.2f, 1.1f);
 
             _body = transform;
-            var main = Shapes.Box("Body", _body, Vector3.zero, Vector3.one, Color.white);
-            Track(main.GetComponent<Renderer>(), 1f);
-            // Darker base rail and top rim give the chunky "extruded" toy look from the mockup.
-            Track(Shapes.Box("Base", _body, new Vector3(0, -0.44f, 0), new Vector3(1.02f, 0.14f, 1.02f), Color.white).GetComponent<Renderer>(), 0.72f);
-            Track(Shapes.Box("Rim", _body, new Vector3(0, 0.5f, 0), new Vector3(1.0f, 0.04f, 1.0f), Color.white).GetComponent<Renderer>(), 0.88f);
-            // Corrugation ridges on the camera-facing side.
-            int ridges = 5 * spec.length;
-            for (int i = 0; i < ridges; i++)
-            {
-                float x = -0.45f + 0.9f * (i + 0.5f) / ridges;
-                Track(Shapes.Box("Ridge", _body, new Vector3(x, -0.02f, -0.5f), new Vector3(0.035f / spec.length, 0.72f, 0.03f), Color.white, false, false)
-                    .GetComponent<Renderer>(), 0.8f);
-            }
+            // One textured box: frame, corner castings, corrugation and doors all come from ContainerArt.
+            _texture = ContainerArt.Texture(spec.length);
+            _bodyRenderer = Shapes.MakeWith("Body", ContainerArt.Mesh(spec.length), Shapes.Mat(Color.white), _body, Vector3.zero, Vector3.one)
+                .GetComponent<Renderer>();
 
             float symbolSize = 0.42f;
             var symbolScale = new Vector3(1f / transform.localScale.x, 1f / transform.localScale.y, 1f / transform.localScale.z);
@@ -109,12 +98,6 @@ namespace Dockside
             ApplyLook();
         }
 
-        private void Track(Renderer r, float shade)
-        {
-            _tinted.Add(r);
-            _tintBase.Add(new Color(shade, shade, shade, 1f));
-        }
-
         public void SetColor(int color)
         {
             _color = color;
@@ -135,15 +118,10 @@ namespace Dockside
         {
             Color baseColor = _revealed ? _palette.ContainerColor(_color) : _palette.hidden;
             if (_lock && _lock.activeSelf) baseColor = Color.Lerp(baseColor, _palette.locked, 0.65f);
-            float dim = _dim ? 0.8f : 1f;
-            for (int i = 0; i < _tinted.Count; i++)
-            {
-                var c = baseColor * _tintBase[i] * dim;
-                c.a = 1f;
-                _mpb.SetColor("_BaseColor", c);
-                _mpb.SetColor("_Color", c);
-                _tinted[i].SetPropertyBlock(_mpb);
-            }
+            // Shared, cached materials (no property blocks) so the SRP Batcher can batch every container.
+            var c = _dim ? Color.Lerp(baseColor * 0.78f, Palette.Hex("6E5D57"), 0.12f) : baseColor;
+            c.a = 1f;
+            _bodyRenderer.sharedMaterial = Shapes.MatTex(c, _texture);
             if (_symbol) _symbol.SetActive(_revealed);
             if (_question) _question.SetActive(!_revealed);
         }

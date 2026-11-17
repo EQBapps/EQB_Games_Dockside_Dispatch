@@ -15,22 +15,39 @@ namespace Dockside
         public const float QuayNearZ = 0.75f, QuayFarZ = 2.6f, BufferZ = 1.65f;
         public const float WaterNearZ = 2.6f, WaterFarZ = 7.6f, ShipZ = 4.5f;
         public const float BerthSpacing = 2.95f;
-        public const float ContentHalfWidth = 4.45f; // what must stay on screen horizontally
+        public const float ContentHalfWidth = 4.7f;  // what must stay on screen horizontally (ships incl. bows)
 
         public readonly int Width, Height, Berths;
+
+        /// <summary>
+        /// The yard is scaled up so it spans most of the screen width (as in the art direction), capped so tall
+        /// yards still fit above the booster bar on a 9:19.5 phone without the camera zooming out.
+        /// </summary>
+        public readonly float YardScale;
+        public float CellSize => Cell * YardScale;
+
+        public const float MaxYardScale = 1.38f;
+        private const float YardWidthBudget = ContentHalfWidth * 2f - 0.55f;   // leave room for the kerbs
+        private const float YardDepthBudget = 8.7f;                            // world z from row 0 to the yard's bottom edge
 
         public BoardLayout(int width, int height, int berths)
         {
             Width = width; Height = height; Berths = berths;
+            float byWidth = YardWidthBudget / (Mathf.Max(1, width) * Cell);
+            float byDepth = YardDepthBudget / ((Mathf.Max(1, height) - 1) * Cell + 0.6f);
+            YardScale = Mathf.Clamp(Mathf.Min(byWidth, byDepth, MaxYardScale), 1f, MaxYardScale);
         }
 
-        public float YardBottomZ => -(Height - 1) * Cell - 0.6f;
+        public float YardBottomZ => -(Height - 1) * CellSize - 0.6f * YardScale;
+
+        /// <summary>Scale of a container sitting in the yard.</summary>
+        public Vector3 YardContainerScale(int length) => ContainerScale(length) * YardScale;
 
         /// <summary>Centre of a container whose left cell is (x, y), in world space, resting on the yard.</summary>
         public Vector3 CellCenter(int x, int y, int length)
         {
-            float cx = (x + (length - 1) * 0.5f - (Width - 1) * 0.5f) * Cell;
-            return new Vector3(cx, ContainerSize.y * 0.5f, -y * Cell);
+            float cx = (x + (length - 1) * 0.5f - (Width - 1) * 0.5f) * CellSize;
+            return new Vector3(cx, ContainerSize.y * YardScale * 0.5f, -y * CellSize);
         }
 
         public static Vector3 ContainerScale(int length) =>
@@ -67,15 +84,16 @@ namespace Dockside
 
             // Vertical screen coordinate of a world point = dot(point, up).
             float vMin = Vector3.Dot(new Vector3(0, 0, YardBottomZ - 0.4f), up);
-            float vMax = Vector3.Dot(new Vector3(0, 2.2f, WaterFarZ + 1.2f), up);
+            // Top: the horizon plus a band of sunset sky (anything spare above that also goes to the sky).
+            float vMax = Vector3.Dot(new Vector3(0, EnvironmentBuilder.WaterY, EnvironmentBuilder.WaterEdgeZ), up) + 1.4f;
             float usable = 1f - topMargin - bottomMargin;
             float sizeForHeight = (vMax - vMin) / (2f * usable);
             float sizeForWidth = ContentHalfWidth / Mathf.Max(0.1f, cam.aspect);
             float size = Mathf.Max(sizeForHeight, sizeForWidth);
             cam.orthographicSize = size;
 
-            float contentCenter = (vMin + vMax) * 0.5f;
-            float vCenter = contentCenter - size * (bottomMargin - topMargin);
+            // Anchor the board just above the bottom HUD bar; any spare height goes to the sunset sky above.
+            float vCenter = vMin + size - 2f * size * bottomMargin;
             cam.transform.position = up * vCenter - fwd * 40f;
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 120f;

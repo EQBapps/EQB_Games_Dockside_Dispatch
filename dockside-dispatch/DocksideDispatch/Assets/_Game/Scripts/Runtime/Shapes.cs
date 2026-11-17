@@ -17,6 +17,7 @@ namespace Dockside
         {
             _palette = palette;
             Materials.Clear();
+            TexMaterials.Clear();
         }
 
         public static Mesh CubeMesh => _cube ? _cube : (_cube = BuiltIn(PrimitiveType.Cube));
@@ -30,6 +31,80 @@ namespace Dockside
             var go = GameObject.CreatePrimitive(type);
             var mesh = go.GetComponent<MeshFilter>().sharedMesh;
             Object.DestroyImmediate(go);
+            return mesh;
+        }
+
+        private static readonly Dictionary<(Color, bool, Texture), Material> TexMaterials = new Dictionary<(Color, bool, Texture), Material>();
+
+        /// <summary>Material tinted by colour with a detail texture (texture x colour). Cached per colour/texture.</summary>
+        public static Material MatTex(Color color, Texture texture, bool unlit = false)
+        {
+            if (TexMaterials.TryGetValue((color, unlit, texture), out var m) && m) return m;
+            m = new Material(Mat(color, unlit)) { name = $"{(unlit ? "Unlit" : "Lit")}Tex_{ColorUtility.ToHtmlStringRGB(color)}_{texture.name}" };
+            if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", texture);
+            if (m.HasProperty("_MainTex")) m.SetTexture("_MainTex", texture);
+            TexMaterials[(color, unlit, texture)] = m;
+            return m;
+        }
+
+        /// <summary>Creates a renderer object with an explicit material.</summary>
+        public static GameObject MakeWith(string name, Mesh mesh, Material material, Transform parent, Vector3 localPos, Vector3 scale, bool castShadows = true)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = scale;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = material;
+            r.shadowCastingMode = castShadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+            return go;
+        }
+
+        private static readonly Dictionary<string, Mesh> Extrusions = new Dictionary<string, Mesh>();
+
+        /// <summary>
+        /// Extrudes a convex side profile (XY, counter-clockwise or clockwise) along Z, centred on z = 0.
+        /// Flat-shaded, so hard edges stay crisp. Meshes are cached by key.
+        /// </summary>
+        public static Mesh Extrude(string key, Vector2[] profile, float depth)
+        {
+            if (Extrusions.TryGetValue(key, out var cached) && cached) return cached;
+            // Normalise winding to counter-clockwise.
+            float area = 0;
+            for (int i = 0; i < profile.Length; i++)
+            {
+                var a = profile[i]; var b = profile[(i + 1) % profile.Length];
+                area += a.x * b.y - b.x * a.y;
+            }
+            var p = (Vector2[])profile.Clone();
+            if (area < 0) System.Array.Reverse(p);
+            float hz = depth * 0.5f;
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+            // Front cap (z = -hz, faces -z towards the camera) and back cap.
+            int f = verts.Count;
+            foreach (var v in p) verts.Add(new Vector3(v.x, v.y, -hz));
+            for (int i = 1; i < p.Length - 1; i++) { tris.Add(f); tris.Add(f + i + 1); tris.Add(f + i); }
+            int bk = verts.Count;
+            foreach (var v in p) verts.Add(new Vector3(v.x, v.y, hz));
+            for (int i = 1; i < p.Length - 1; i++) { tris.Add(bk); tris.Add(bk + i); tris.Add(bk + i + 1); }
+            // Sides.
+            for (int i = 0; i < p.Length; i++)
+            {
+                var a = p[i]; var b = p[(i + 1) % p.Length];
+                int s = verts.Count;
+                verts.Add(new Vector3(a.x, a.y, -hz)); verts.Add(new Vector3(b.x, b.y, -hz));
+                verts.Add(new Vector3(b.x, b.y, hz)); verts.Add(new Vector3(a.x, a.y, hz));
+                tris.Add(s); tris.Add(s + 1); tris.Add(s + 2);
+                tris.Add(s); tris.Add(s + 2); tris.Add(s + 3);
+            }
+            var mesh = new Mesh { name = "Extrude_" + key };
+            mesh.SetVertices(verts);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            Extrusions[key] = mesh;
             return mesh;
         }
 

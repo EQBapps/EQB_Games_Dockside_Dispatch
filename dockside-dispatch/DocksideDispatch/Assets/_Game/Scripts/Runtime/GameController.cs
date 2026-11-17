@@ -86,6 +86,7 @@ namespace Dockside
             {
                 var spec = _session.Spec(i);
                 var view = ContainerView.Create(_yardRoot, spec, _pal);
+                view.transform.localScale = _layout.YardContainerScale(spec.length);
                 view.transform.position = _layout.CellCenter(spec.x, spec.y, spec.length);
                 _containers[i] = view;
             }
@@ -239,6 +240,7 @@ namespace Dockside
                     view.transform.SetParent(ship.transform, true);
                     view.transform.localPosition = ship.SlotLocalPosition(e.slot, len);
                     view.transform.localRotation = Quaternion.identity;
+                    ship.SetLoaded(ship.Loaded + len);
                     StartCoroutine(Tween.Pop(view.transform, 0.25f, 0.18f));
                     if (e.type == GameEventType.BufferToShip) yield return RelayoutBuffer(0.12f);
                     break;

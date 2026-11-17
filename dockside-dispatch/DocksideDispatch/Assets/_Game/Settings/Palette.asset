@@ -14,6 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Dockside.Runtime::Dockside.Palette
   litBase: {fileID: 2100000, guid: 221b1f19a171c844299ade100aa70327, type: 2}
   unlitBase: {fileID: 2100000, guid: 937f494e00b922f4a93e266bd36ba3f1, type: 2}
+  waterMaterial: {fileID: 2100000, guid: 173662ddad360f34695533bbdac48ca4, type: 2}
+  skyZenith: {r: 0.72156864, g: 0.41568628, b: 0.6039216, a: 1}
+  skyHigh: {r: 0.9137255, g: 0.5019608, b: 0.6039216, a: 1}
+  skyMid: {r: 1, g: 0.62352943, b: 0.49411765, a: 1}
+  skyHorizon: {r: 1, g: 0.8156863, b: 0.56078434, a: 1}
+  sunGlow: {r: 1, g: 0.90588236, b: 0.6509804, a: 1}
+  cloudLight: {r: 1, g: 0.7882353, b: 0.65882355, a: 1}
+  cloudShade: {r: 0.9098039, g: 0.5764706, b: 0.6117647, a: 1}
+  silhouetteFar: {r: 0.8509804, g: 0.5254902, b: 0.56078434, a: 1}
+  silhouetteNear: {r: 0.6117647, g: 0.32156864, b: 0.45490196, a: 1}
+  silhouetteLight: {r: 1, g: 0.9019608, b: 0.627451, a: 1}
+  waterShallow: {r: 0.18431373, g: 0.6392157, b: 0.61960787, a: 1}
+  waterDeep: {r: 0.105882354, g: 0.49411765, b: 0.5294118, a: 1}
+  waterHorizon: {r: 0.9490196, g: 0.6901961, b: 0.5568628, a: 1}
+  waterGlitter: {r: 1, g: 0.90588236, b: 0.6392157, a: 1}
+  foam: {r: 0.9529412, g: 0.9843137, b: 0.9647059, a: 1}
+  fender: {r: 0.22745098, g: 0.19215687, b: 0.2, a: 1}
   containerColors:
   - {r: 0.9098039, g: 0.27450982, b: 0.24705882, a: 1}
   - {r: 0.18431373, g: 0.49803922, b: 0.8784314, a: 1}
