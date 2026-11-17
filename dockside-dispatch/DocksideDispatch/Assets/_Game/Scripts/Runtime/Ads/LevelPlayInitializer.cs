@@ -35,6 +35,10 @@ namespace Dockside
             while (!Privacy.Ready) yield return null;
             Privacy.ApplyToLevelPlay();
 
+            // Enable Test Suite: Development Builds only (Dockside > Build Android APK (ad test suite)),
+            // so it can never reach a release build.
+            if (Debug.isDebugBuild && !Application.isEditor) LevelPlay.SetMetaData("is_test_suite", "enable");
+
             // Initialize the SDK with your App Key
             LevelPlay.Init(appKey);
         }
@@ -45,6 +49,8 @@ namespace Dockside
             // SDK is now ready to load ads
             IsInitialized = true;
             Initialized?.Invoke();
+            // Launch Test Suite: Development Builds only (validates real ads on a device)
+            if (Debug.isDebugBuild && !Application.isEditor) LevelPlay.LaunchTestSuite();
         }
 
         private void OnInitFailed(LevelPlayInitError error)

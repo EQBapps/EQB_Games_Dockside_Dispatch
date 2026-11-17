@@ -18,13 +18,13 @@ namespace Dockside.EditorTools
         public const string BundleId = "com.eqbbusiness.docksidedispatch";
         public const string LevelPlayAppKey = "29a53b4f5";   // LevelPlay dashboard > Apps > Dockside Dispatch (Android)
         // LevelPlay dashboard > Ad units (Android). Empty = that format is disabled.
-        public const string RewardedAdUnitId = "";
-        public const string InterstitialAdUnitId = "";
+        public const string RewardedAdUnitId = "hrowdp60uf3dioyo";
+        public const string InterstitialAdUnitId = "0bssvtrl84y2qzmb";
         public const double RewardedBidFloor = 0, InterstitialBidFloor = 0;   // USD, 0 = no floor
 
         // GameAnalytics (gameanalytics.com > game settings > Setup). Empty = analytics only logs to the console.
-        public const string GameAnalyticsGameKey = "";
-        public const string GameAnalyticsSecretKey = "";
+        public const string GameAnalyticsGameKey = "8b5026d7d4b8c8993a6e8a5c9581cbd1";
+        public const string GameAnalyticsSecretKey = "c68e14d9948e2d9f7b6eae5c460145441e530a30";
         private const string GameAnalyticsSettingsPath = "Assets/Resources/GameAnalytics/Settings.asset";   // where the SDK looks
         private const string Root = "Assets/_Game";
         private const string ScenePath = Root + "/Scenes/Main.unity";
@@ -80,8 +80,8 @@ namespace Dockside.EditorTools
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-            PlayerSettings.bundleVersion = "0.2.0";
-            PlayerSettings.Android.bundleVersionCode = 2;   // must increase for each build installed over the last
+            PlayerSettings.bundleVersion = "0.3.0";
+            PlayerSettings.Android.bundleVersionCode = 3;   // must increase for each build installed over the last
 
             ConfigureSplash();
             ConfigureMobileRendering();

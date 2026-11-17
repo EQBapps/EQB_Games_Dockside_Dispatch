@@ -15,7 +15,20 @@ namespace Dockside.EditorTools
     public static class BuildTools
     {
         [MenuItem("Dockside/Build Android APK")]
-        public static void BuildAndroidApk()
+        public static void BuildAndroidApk() => Build(false);
+
+        /// <summary>Development build that opens the LevelPlay Test Suite after ads initialize (validates real ad networks).</summary>
+        [MenuItem("Dockside/Build Android APK (ad test suite)")]
+        public static void BuildAndroidApkAdTest() => Build(true);
+
+        /// <summary>Both APKs in one go (batch: -executeMethod Dockside.EditorTools.BuildTools.BuildAndroidBoth).</summary>
+        public static void BuildAndroidBoth()
+        {
+            bool ok = Build(true, exitWhenDone: false) && Build(false, exitWhenDone: false);
+            if (Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
+        }
+
+        private static bool Build(bool adTestSuite, bool exitWhenDone = true)
         {
             ProjectSetup.ConfigureSplash();
             ProjectSetup.ConfigureMobileRendering();
@@ -35,7 +48,7 @@ namespace Dockside.EditorTools
 
             string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "Android"));
             Directory.CreateDirectory(dir);
-            string apk = Path.Combine(dir, $"DocksideDispatch-{PlayerSettings.bundleVersion}-{PlayerSettings.Android.bundleVersionCode}.apk");
+            string apk = Path.Combine(dir, $"DocksideDispatch-{PlayerSettings.bundleVersion}-{PlayerSettings.Android.bundleVersionCode}{(adTestSuite ? "-adtest" : "")}.apk");
 
             var options = new BuildPlayerOptions
             {
@@ -43,13 +56,15 @@ namespace Dockside.EditorTools
                 locationPathName = apk,
                 target = BuildTarget.Android,
                 targetGroup = BuildTargetGroup.Android,
-                options = BuildOptions.None,
+                options = adTestSuite ? BuildOptions.Development : BuildOptions.None,
             };
             var report = BuildPipeline.BuildPlayer(options);
             var s = report.summary;
             Debug.Log($"[Dockside] Android build {s.result}: {apk} ({s.totalSize / (1024f * 1024f):0.0} MB) in {s.totalTime:mm\\:ss}, " +
                       $"{s.totalErrors} errors, {s.totalWarnings} warnings");
-            if (Application.isBatchMode) EditorApplication.Exit(s.result == BuildResult.Succeeded ? 0 : 1);
+            bool ok = s.result == BuildResult.Succeeded;
+            if (exitWhenDone && Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
+            return ok;
         }
     }
 }

@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Settings
   m_EditorClassIdentifier: GameAnalyticsSDK::GameAnalyticsSDK.Setup.Settings
   gameKey:
-  - 
+  - 8b5026d7d4b8c8993a6e8a5c9581cbd1
   secretKey:
-  - 
+  - c68e14d9948e2d9f7b6eae5c460145441e530a30
   Build:
   - 0.1
   SelectedPlatformOrganization:
