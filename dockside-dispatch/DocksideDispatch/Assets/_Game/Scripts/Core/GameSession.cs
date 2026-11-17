@@ -207,19 +207,27 @@ namespace Dockside.Core
         // Actions
         // =====================================================================
 
-        /// <summary>Tap a yard container. With ignorePath (Crane Lift booster) any unlocked container can be taken.</summary>
+        /// <summary>
+        /// Tap a yard container. With ignorePath (the Crane Lift booster) any container can be taken: the crane lifts it
+        /// out over whatever blocks it, and also frees a locked container (its lock no longer matters once it has left the yard).
+        /// </summary>
         public TapResult Tap(int containerIndex, List<GameEvent> outEvents = null, bool ignorePath = false)
         {
             _events.Clear();
             if (IsOver) return TapResult.GameOver;
             if (containerIndex < 0 || containerIndex >= _inYard.Length || !_inYard[containerIndex]) return TapResult.NotInYard;
-            if (_locked[containerIndex]) return TapResult.Locked;
+            if (_locked[containerIndex] && !ignorePath) return TapResult.Locked;
             if (!ignorePath && !_reachable[containerIndex]) return TapResult.Blocked;
 
             var c = Level.containers[containerIndex];
             int berth = BerthFor(containerIndex);
             if (berth < 0 && BufferFree < c.length) return TapResult.NoRoom;
 
+            if (_locked[containerIndex])
+            {
+                _locked[containerIndex] = false;                       // lifted out by the crane
+                Emit(GameEventType.ContainerUnlocked, containerIndex, -1, -1, -1);
+            }
             RemoveFromYard(containerIndex);
             if (berth >= 0)
             {

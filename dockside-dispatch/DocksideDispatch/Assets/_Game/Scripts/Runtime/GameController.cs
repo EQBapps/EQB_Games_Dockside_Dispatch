@@ -23,6 +23,8 @@ namespace Dockside
         private Camera _cam;
         private HudView _hud;
         private TutorialView _tutorial;
+        private CraneRig _craneRig;
+        private int _craneLifted = -1;   // container being carried by the Crane Lift animation
 
         private GameSession _session;
         private BoardLayout _layout;
@@ -101,6 +103,9 @@ namespace Dockside
             _bufferSlots.Init(_pal);
             _bufferSlots.SetCapacity(_session.BufferCapacity);
             _bufferSlots.SetUsed(SlotOfViewItem(_viewBuffer.Count));
+
+            _craneRig = CraneRig.Create(_levelRoot, _pal);
+            _craneLifted = -1;
 
             _yardRoot = new GameObject("Yard").transform;
             _yardRoot.SetParent(_levelRoot, false);
@@ -198,15 +203,17 @@ namespace Dockside
             if (index < 0 || !_session.InYard(index)) return;
 
             var events = new List<GameEvent>();
-            var result = _session.Tap(index, events, ignorePath: _craneArmed);
+            // Crane Lift is only spent when it's needed: a container that can already move just moves (booster stays armed).
+            bool useCrane = _craneArmed && !_session.CanTap(index);
+            var result = _session.Tap(index, events, ignorePath: useCrane);
             switch (result)
             {
                 case TapResult.Accepted:
                     _tutorial.OnTapAccepted();
                     Sfx.Play("tap", 0.8f);
-                    if (_craneArmed)
+                    if (useCrane)
                     {
-                        Sfx.Play("crane");   // the crane lifts a blocked container out
+                        _craneLifted = index;   // played back by the crane rig, not the usual arc
                         ConsumeBooster(BoosterType.CraneLift);
                         _craneArmed = false;
                         _hud.SetCraneHint(false);
@@ -222,7 +229,7 @@ namespace Dockside
                 case TapResult.Locked:
                     StartCoroutine(Tween.Shake(view.transform));
                     Sfx.Play("blocked", 0.7f);
-                    _hud.Toast("Locked: send off the container with the key");
+                    _hud.Toast("Locked: send off the container with the key, or lift it out with Crane Lift");
                     break;
                 case TapResult.NoRoom:
                     StartCoroutine(Tween.Shake(view.transform));
@@ -266,10 +273,20 @@ namespace Dockside
                     // Ship may still be sailing in: wait until it is near its berth.
                     while (ship && Vector3.Distance(ship.transform.position, BerthPosition(e.berth)) > 0.3f) yield return null;
                     int len = view.Length;
-                    var target = ship.SlotWorldPosition(e.slot, len);
-                    Sfx.Play("lift", 0.6f);
-                    yield return Tween.Arc(view.transform, target, 1.6f, 0.3f, BoardLayout.ContainerScale(len) * BoardLayout.ShipScale, ship.transform.rotation);
-                    Sfx.Play("land");
+                    view.SetRevealed(true);
+                    if (e.containerId == _craneLifted)
+                    {
+                        _craneLifted = -1;
+                        yield return _craneRig.Carry(view.transform, () => ship.SlotWorldPosition(e.slot, len),
+                            BoardLayout.ContainerScale(len) * BoardLayout.ShipScale, ship.transform.rotation);
+                    }
+                    else
+                    {
+                        var target = ship.SlotWorldPosition(e.slot, len);
+                        Sfx.Play("lift", 0.6f);
+                        yield return Tween.Arc(view.transform, target, 1.6f, 0.3f, BoardLayout.ContainerScale(len) * BoardLayout.ShipScale, ship.transform.rotation);
+                        Sfx.Play("land");
+                    }
                     view.transform.SetParent(ship.transform, true);
                     view.transform.localPosition = ship.SlotLocalPosition(e.slot, len);
                     view.transform.localRotation = Quaternion.identity;
@@ -285,8 +302,17 @@ namespace Dockside
                     _viewBuffer.Add(e.containerId);
                     int cap = _session.BufferCapacity;
                     var target = BoardLayout.BufferPosition(SlotOfViewItem(_viewBuffer.Count - 1), view.Length, cap);
-                    Sfx.Play("lift", 0.6f);
-                    yield return Tween.Arc(view.transform, target, 1.4f, 0.26f, BoardLayout.BufferScale(view.Length, cap), Quaternion.identity);
+                    view.SetRevealed(true);
+                    if (e.containerId == _craneLifted)
+                    {
+                        _craneLifted = -1;
+                        yield return _craneRig.Carry(view.transform, () => target, BoardLayout.BufferScale(view.Length, cap), Quaternion.identity);
+                    }
+                    else
+                    {
+                        Sfx.Play("lift", 0.6f);
+                        yield return Tween.Arc(view.transform, target, 1.4f, 0.26f, BoardLayout.BufferScale(view.Length, cap), Quaternion.identity);
+                    }
                     Sfx.Play("bay");
                     _bufferSlots.SetUsed(SlotOfViewItem(_viewBuffer.Count));
                     _tutorial.OnContainerToBay();

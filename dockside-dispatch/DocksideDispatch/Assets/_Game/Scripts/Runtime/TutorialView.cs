@@ -92,7 +92,7 @@ namespace Dockside
             if (hasLong && !Seen(LongKey))
                 yield return Card(LongKey, "New: long containers", "They fill 2 slots on a ship or in the holding bay. Plan where they go!");
             if (hasLock && !Seen(LockKey))
-                yield return Card(LockKey, "New: locked containers", "Send off the container carrying the gold key to unlock it.");
+                yield return Card(LockKey, "New: locked containers", "Send off the container carrying the gold key to unlock it, or lift it straight out with Crane Lift.");
             if (hasHidden && !Seen(HiddenKey))
                 yield return Card(HiddenKey, "New: mystery containers", "A \"?\" container shows its colour once it has a clear path to the quay.");
 

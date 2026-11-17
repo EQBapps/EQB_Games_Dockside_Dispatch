@@ -182,6 +182,30 @@ namespace Dockside.Tests
         }
 
         [Test]
+        public void CraneLiftTakesLockedContainers()
+        {
+            var level = new LevelData
+            {
+                width = 2, height = 1, berths = 1, bufferSize = 5, colorCount = 1,
+                containers = new List<ContainerSpec>
+                {
+                    new ContainerSpec { id = 0, x = 0, y = 0, color = 0, kind = ContainerKind.Locked, lockId = 0 },
+                    new ContainerSpec { id = 1, x = 1, y = 0, color = 0, keyId = 0 },
+                },
+                ships = new List<ShipSpec> { new ShipSpec { color = 0, capacity = 2 } },
+            };
+            var s = new GameSession(level);
+            Assert.AreEqual(TapResult.Locked, s.Tap(0));
+            var ev = new List<GameEvent>();
+            Assert.AreEqual(TapResult.Accepted, s.Tap(0, ev, ignorePath: true));
+            Assert.IsFalse(s.IsLocked(0));
+            Assert.IsTrue(ev.Any(e => e.type == GameEventType.ContainerUnlocked && e.containerId == 0));
+            // The key container still works normally afterwards and the level can be won.
+            Assert.AreEqual(TapResult.Accepted, s.Tap(1));
+            Assert.IsTrue(s.IsWon);
+        }
+
+        [Test]
         public void ValidateCatchesUnbalancedColours()
         {
             var level = Grid(new[] { new[] { 0, 0 } }, new List<ShipSpec> { new ShipSpec { color = 0, capacity = 3 } });
