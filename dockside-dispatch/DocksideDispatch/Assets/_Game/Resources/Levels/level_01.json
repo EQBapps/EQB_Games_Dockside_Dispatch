@@ -1,0 +1,116 @@
+{
+    "levelNumber": 1,
+    "seed": 7919,
+    "width": 4,
+    "height": 3,
+    "berths": 3,
+    "bufferSize": 5,
+    "colorCount": 2,
+    "casualWinRate": 1.0,
+    "containers": [
+        {
+            "id": 0,
+            "x": 2,
+            "y": 1,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 1,
+            "x": 1,
+            "y": 2,
+            "length": 1,
+            "color": 1,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 2,
+            "x": 2,
+            "y": 2,
+            "length": 1,
+            "color": 1,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 3,
+            "x": 3,
+            "y": 0,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 4,
+            "x": 2,
+            "y": 0,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 5,
+            "x": 3,
+            "y": 2,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 6,
+            "x": 3,
+            "y": 1,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 7,
+            "x": 1,
+            "y": 1,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 8,
+            "x": 1,
+            "y": 0,
+            "length": 1,
+            "color": 1,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        }
+    ],
+    "ships": [
+        {
+            "color": 0,
+            "capacity": 3
+        },
+        {
+            "color": 1,
+            "capacity": 3
+        },
+        {
+            "color": 0,
+            "capacity": 3
+        }
+    ]
+}

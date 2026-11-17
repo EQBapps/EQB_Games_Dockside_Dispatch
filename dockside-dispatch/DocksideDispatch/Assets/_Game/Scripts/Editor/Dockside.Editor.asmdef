@@ -1,0 +1,19 @@
+{
+    "name": "Dockside.Editor",
+    "rootNamespace": "Dockside.EditorTools",
+    "references": [
+        "Dockside.Core",
+        "Dockside.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
