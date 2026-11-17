@@ -19,6 +19,7 @@ namespace Dockside
         private Palette _pal;
         private Camera _cam;
         private HudView _hud;
+        private TutorialView _tutorial;
 
         private GameSession _session;
         private BoardLayout _layout;
@@ -42,9 +43,18 @@ namespace Dockside
             _hud = HudView.Create(palette);
             _hud.PauseClicked += OnPause;
             _hud.BoosterClicked += OnBooster;
+            _tutorial = TutorialView.Create(_hud, cam, palette);
             _hud.SetCoins(SaveData.Coins);
             foreach (BoosterType t in System.Enum.GetValues(typeof(BoosterType))) _hud.SetBooster(t, SaveData.Boosters(t));
             StartLevel(SaveData.Level);
+            // GDPR players are asked once before any ads load (LevelPlayInitializer waits for the answer).
+            if (Privacy.NeedsGdprAnswer)
+                _hud.ShowAdConsent(yes =>
+                {
+                    Privacy.GdprAnswer = yes ? 1 : 0;
+                    Analytics.Event("privacy_consent", ("gdpr", yes));
+                    _hud.HidePanels();
+                });
         }
 
         // =====================================================================
@@ -108,6 +118,9 @@ namespace Dockside
             _levelStartTime = Time.time;
             Analytics.Event("level_start", ("level", levelNumber), ("seed", level.seed), ("containers", level.containers.Count),
                 ("ships", level.ships.Count));
+            _tutorial.OnLevelStarted(levelNumber, _session,
+                i => _containers.TryGetValue(i, out var v) && v && _session.InYard(i) ? v.transform.position + Vector3.up * 0.45f : (Vector3?)null,
+                b => _ships != null && _ships[b] && Vector3.Distance(_ships[b].transform.position, BerthPosition(b)) < 0.3f);
         }
 
         private IEnumerator DockShip(int berth, int shipIndex, float delay)
@@ -178,8 +191,11 @@ namespace Dockside
             switch (result)
             {
                 case TapResult.Accepted:
+                    _tutorial.OnTapAccepted();
+                    Sfx.Play("tap", 0.8f);
                     if (_craneArmed)
                     {
+                        Sfx.Play("crane");   // the crane lifts a blocked container out
                         ConsumeBooster(BoosterType.CraneLift);
                         _craneArmed = false;
                         _hud.SetCraneHint(false);
@@ -189,14 +205,17 @@ namespace Dockside
                     break;
                 case TapResult.Blocked:
                     StartCoroutine(Tween.Shake(view.transform));
+                    Sfx.Play("blocked", 0.7f);
                     _hud.Toast("Blocked: clear a path to the quay first");
                     break;
                 case TapResult.Locked:
                     StartCoroutine(Tween.Shake(view.transform));
+                    Sfx.Play("blocked", 0.7f);
                     _hud.Toast("Locked: send off the container with the key");
                     break;
                 case TapResult.NoRoom:
                     StartCoroutine(Tween.Shake(view.transform));
+                    Sfx.Play("blocked", 0.7f);
                     _hud.Toast("No room for that in the holding bay");
                     break;
             }
@@ -237,7 +256,9 @@ namespace Dockside
                     while (ship && Vector3.Distance(ship.transform.position, BerthPosition(e.berth)) > 0.3f) yield return null;
                     int len = view.Length;
                     var target = ship.SlotWorldPosition(e.slot, len);
+                    Sfx.Play("lift", 0.6f);
                     yield return Tween.Arc(view.transform, target, 1.6f, 0.3f, BoardLayout.ContainerScale(len) * BoardLayout.ShipScale, ship.transform.rotation);
+                    Sfx.Play("land");
                     view.transform.SetParent(ship.transform, true);
                     view.transform.localPosition = ship.SlotLocalPosition(e.slot, len);
                     view.transform.localRotation = Quaternion.identity;
@@ -253,8 +274,11 @@ namespace Dockside
                     _viewBuffer.Add(e.containerId);
                     int cap = _session.BufferCapacity;
                     var target = BoardLayout.BufferPosition(SlotOfViewItem(_viewBuffer.Count - 1), view.Length, cap);
+                    Sfx.Play("lift", 0.6f);
                     yield return Tween.Arc(view.transform, target, 1.4f, 0.26f, BoardLayout.BufferScale(view.Length, cap), Quaternion.identity);
+                    Sfx.Play("bay");
                     _bufferSlots.SetUsed(SlotOfViewItem(_viewBuffer.Count));
+                    _tutorial.OnContainerToBay();
                     StartCoroutine(Tween.Pop(view.transform, 0.2f, 0.16f));
                     break;
                 }
@@ -271,6 +295,7 @@ namespace Dockside
                     {
                         StartCoroutine(Tween.Pop(ship.transform, 0.12f, 0.25f));
                         yield return new WaitForSeconds(0.12f);
+                        Sfx.Play("horn", 0.8f);
                         StartCoroutine(SailAway(ship));
                         yield return new WaitForSeconds(0.25f);
                     }
@@ -283,6 +308,7 @@ namespace Dockside
                     if (_containers.TryGetValue(e.containerId, out var rv))
                     {
                         rv.SetRevealed(true);
+                        Sfx.Play("reveal", 0.7f);
                         StartCoroutine(Tween.Pop(rv.transform, 0.2f, 0.25f));
                     }
                     break;
@@ -290,6 +316,7 @@ namespace Dockside
                     if (_containers.TryGetValue(e.containerId, out var uv))
                     {
                         uv.SetLocked(false);
+                        Sfx.Play("unlock");
                         StartCoroutine(Tween.Pop(uv.transform, 0.25f, 0.3f));
                     }
                     RefreshYard();
@@ -347,7 +374,15 @@ namespace Dockside
             SaveData.Level = _levelNumber + 1;
             Analytics.Event("level_complete", ("level", _levelNumber), ("moves", _session.MovesMade),
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("boosters", _boostersUsed), ("second_chance", _usedSecondChance));
-            _hud.ShowWin(_levelNumber, WinCoins, () => StartLevel(SaveData.Level));
+            Sfx.Play("win");
+            int completed = _levelNumber;
+            _hud.ShowWin(_levelNumber, WinCoins, () =>
+            {
+                // A capped, opportunistic interstitial between levels; the game never waits for an ad.
+                var ads = AdManager.Instance;
+                if (ads == null || !ads.TryShowInterstitialAfterLevel(completed, () => StartLevel(SaveData.Level)))
+                    StartLevel(SaveData.Level);
+            });
         }
 
         private void OnLost()
@@ -358,14 +393,22 @@ namespace Dockside
                 : "The holding bay is full.";
             Analytics.Event("level_fail", ("level", _levelNumber), ("reason", _session.LoseReason), ("moves", _session.MovesMade),
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("second_chance", _usedSecondChance));
+            Sfx.Play("lose");
             _hud.ShowLose(reason, !_usedSecondChance, SecondChance, () => StartLevel(_levelNumber));
         }
 
         private void SecondChance()
         {
-            // Prototype: stands in for a rewarded ad.
+            // Rewarded video: the reward (2 extra bay slots) is granted when the player has earned it.
+            var ads = AdManager.Instance;
+            if (ads == null || !ads.ShowRewarded("second_chance", GrantSecondChance))
+                _hud.Toast("No video is available right now. Try again in a moment.");
+        }
+
+        private void GrantSecondChance()
+        {
+            if (_usedSecondChance || _session == null || !_session.IsLost) return;
             _usedSecondChance = true;
-            Analytics.Event("rewarded_placeholder", ("placement", "second_chance"), ("level", _levelNumber));
             _hud.HidePanels();
             var events = new List<GameEvent>();
             _session.AddBufferSlots(2, events);
@@ -383,11 +426,15 @@ namespace Dockside
             int count = SaveData.Boosters(type);
             if (count <= 0)
             {
-                // Prototype: stands in for "watch an ad to get one".
-                SaveData.SetBoosters(type, 1);
-                _hud.SetBooster(type, 1);
-                _hud.Toast($"Ad placeholder: +1 {Label(type)}");
-                Analytics.Event("rewarded_placeholder", ("placement", type), ("level", _levelNumber));
+                // Out of this booster: offer a rewarded video for one more.
+                var ads = AdManager.Instance;
+                bool shown = ads != null && ads.ShowRewarded("booster_" + type, () =>
+                {
+                    SaveData.SetBoosters(type, SaveData.Boosters(type) + 1);
+                    _hud.SetBooster(type, SaveData.Boosters(type));
+                    _hud.Toast($"+1 {Label(type)}");
+                });
+                if (!shown) _hud.Toast("No video is available right now. Try again in a moment.");
                 return;
             }
             switch (type)
@@ -397,18 +444,21 @@ namespace Dockside
                     var ev = new List<GameEvent>();
                     _session.AddBufferSlots(1, ev);
                     _bufferSlots.SetCapacity(_session.BufferCapacity);
+                    Sfx.Play("berth");
                     StartCoroutine(RelayoutBuffer(0.2f));
                     Enqueue(ev);
                     ConsumeBooster(type);
                     break;
                 case BoosterType.CraneLift:
                     _craneArmed = !_craneArmed;
+                    if (_craneArmed) Sfx.Play("crane", 0.8f);
                     _hud.SetCraneHint(_craneArmed);
                     _hud.SetBooster(type, count, _craneArmed);
                     break;
                 case BoosterType.Shuffle:
                     var sev = new List<GameEvent>();
                     _session.ShuffleYard(_rng, sev);
+                    Sfx.Play("shuffle");
                     foreach (var kv in _containers)
                     {
                         if (!_session.InYard(kv.Key)) continue;
@@ -443,7 +493,26 @@ namespace Dockside
             _hud.ShowPause(
                 resume: () => _hud.HidePanels(),
                 restart: () => StartLevel(_levelNumber),
-                skip: () => { SaveData.Level = _levelNumber + 1; StartLevel(SaveData.Level); });
+                skip: () => { SaveData.Level = _levelNumber + 1; StartLevel(SaveData.Level); },
+                soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",
+                toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
+                privacy: ShowPrivacy);
+        }
+
+        private void ShowPrivacy()
+        {
+            _hud.ShowPrivacy(
+                gdprLabel: Privacy.GdprAnswer == 1 ? "Personalised ads: On" : "Personalised ads: Off",
+                toggleGdpr: () => { Privacy.GdprAnswer = Privacy.GdprAnswer == 1 ? 0 : 1; ApplyPrivacy(); ShowPrivacy(); },
+                ccpaLabel: Privacy.CcpaOptOut ? "Do not sell/share my info: On" : "Do not sell/share my info: Off",
+                toggleCcpa: () => { Privacy.CcpaOptOut = !Privacy.CcpaOptOut; ApplyPrivacy(); ShowPrivacy(); },
+                back: () => { _hud.HidePanels(); OnPause(); });
+        }
+
+        private static void ApplyPrivacy()
+        {
+            // Changes apply to future ad requests (LevelPlay privacy settings may be updated after Init).
+            if (LevelPlayInitializer.IsInitialized) Privacy.ApplyToLevelPlay();
         }
     }
 }

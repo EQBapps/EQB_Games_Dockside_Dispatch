@@ -5,7 +5,9 @@
         "Dockside.Core",
         "Dockside.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.RenderPipelines.Core.Runtime"
+        "Unity.RenderPipelines.Core.Runtime",
+        "GameAnalyticsSDK",
+        "Unity.LevelPlay"
     ],
     "includePlatforms": [
         "Editor"

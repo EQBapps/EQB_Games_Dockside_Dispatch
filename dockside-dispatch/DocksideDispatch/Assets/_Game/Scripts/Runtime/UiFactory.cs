@@ -43,6 +43,38 @@ namespace Dockside
             }
         }
 
+        private static Sprite _disc;
+        private static readonly System.Collections.Generic.Dictionary<int, Sprite> Rings = new System.Collections.Generic.Dictionary<int, Sprite>();
+
+        /// <summary>Anti-aliased white disc.</summary>
+        public static Sprite Disc => _disc ? _disc : (_disc = Annulus(0f));
+
+        /// <summary>Anti-aliased white ring; thickness is a fraction of the diameter.</summary>
+        public static Sprite RingSprite(float thickness)
+        {
+            int key = Mathf.RoundToInt(thickness * 1000);
+            if (Rings.TryGetValue(key, out var s) && s) return s;
+            return Rings[key] = Annulus(thickness);
+        }
+
+        private static Sprite Annulus(float thickness)
+        {
+            const int size = 128;
+            float rOut = size * 0.5f - 1f, rIn = thickness <= 0 ? -1f : rOut - thickness * size;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(size * 0.5f, size * 0.5f));
+                float a = Mathf.Clamp01(rOut - d + 0.5f) * (rIn < 0 ? 1f : Mathf.Clamp01(d - rIn + 0.5f));
+                px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
+            }
+            tex.SetPixels32(px);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+        }
+
         public static Canvas CreateCanvas(string name)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -128,7 +160,7 @@ namespace Dockside
             colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
             colors.highlightedColor = Color.white;
             b.colors = colors;
-            b.onClick.AddListener(() => onClick?.Invoke());
+            b.onClick.AddListener(() => { Sfx.Play("click", 0.6f, 0f); onClick?.Invoke(); });
             img.gameObject.name = $"Button_{accessibleName}";
             return b;
         }

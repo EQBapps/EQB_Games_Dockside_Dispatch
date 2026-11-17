@@ -16,6 +16,16 @@ namespace Dockside.EditorTools
         public const string CompanyName = "EQB Business Solutions";
         public const string ProductName = "Dockside Dispatch";
         public const string BundleId = "com.eqbbusiness.docksidedispatch";
+        public const string LevelPlayAppKey = "29a53b4f5";   // LevelPlay dashboard > Apps > Dockside Dispatch (Android)
+        // LevelPlay dashboard > Ad units (Android). Empty = that format is disabled.
+        public const string RewardedAdUnitId = "";
+        public const string InterstitialAdUnitId = "";
+        public const double RewardedBidFloor = 0, InterstitialBidFloor = 0;   // USD, 0 = no floor
+
+        // GameAnalytics (gameanalytics.com > game settings > Setup). Empty = analytics only logs to the console.
+        public const string GameAnalyticsGameKey = "";
+        public const string GameAnalyticsSecretKey = "";
+        private const string GameAnalyticsSettingsPath = "Assets/Resources/GameAnalytics/Settings.asset";   // where the SDK looks
         private const string Root = "Assets/_Game";
         private const string ScenePath = Root + "/Scenes/Main.unity";
 
@@ -48,6 +58,18 @@ namespace Dockside.EditorTools
             var so = new SerializedObject(boot);
             so.FindProperty("palette").objectReferenceValue = palette;
             so.ApplyModifiedPropertiesWithoutUndo();
+            // LevelPlay (ads): initializer with the app key from the LevelPlay dashboard.
+            var ads = game.AddComponent<LevelPlayInitializer>();
+            var adsSo = new SerializedObject(ads);
+            adsSo.FindProperty("appKey").stringValue = LevelPlayAppKey;
+            adsSo.ApplyModifiedPropertiesWithoutUndo();
+            var adManager = game.AddComponent<AdManager>();
+            var amSo = new SerializedObject(adManager);
+            amSo.FindProperty("rewardedAdUnitId").stringValue = RewardedAdUnitId;
+            amSo.FindProperty("interstitialAdUnitId").stringValue = InterstitialAdUnitId;
+            amSo.FindProperty("rewardedBidFloor").doubleValue = RewardedBidFloor;
+            amSo.FindProperty("interstitialBidFloor").doubleValue = InterstitialBidFloor;
+            amSo.ApplyModifiedPropertiesWithoutUndo();
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
@@ -63,6 +85,7 @@ namespace Dockside.EditorTools
 
             ConfigureSplash();
             ConfigureMobileRendering();
+            ConfigureGameAnalytics();
 
             AssetDatabase.SaveAssets();
             Debug.Log($"[Dockside] Project setup complete: scene {ScenePath}, bundle id {BundleId}.");
@@ -128,6 +151,28 @@ namespace Dockside.EditorTools
                 importer.SaveAndReimport();
             }
             return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        }
+
+        /// <summary>Writes the GameAnalytics settings asset: Android platform with the game and secret keys.</summary>
+        [MenuItem("Dockside/Configure GameAnalytics")]
+        public static void ConfigureGameAnalytics()
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<GameAnalyticsSDK.Setup.Settings>(GameAnalyticsSettingsPath);
+            if (settings == null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(GameAnalyticsSettingsPath));
+                settings = ScriptableObject.CreateInstance<GameAnalyticsSDK.Setup.Settings>();
+                AssetDatabase.CreateAsset(settings, GameAnalyticsSettingsPath);
+            }
+            if (!settings.Platforms.Contains(RuntimePlatform.Android)) settings.AddPlatform(RuntimePlatform.Android);
+            int i = settings.Platforms.IndexOf(RuntimePlatform.Android);
+            if (!string.IsNullOrEmpty(GameAnalyticsGameKey) && !string.IsNullOrEmpty(GameAnalyticsSecretKey))
+            {
+                settings.UpdateGameKey(i, GameAnalyticsGameKey);
+                settings.UpdateSecretKey(i, GameAnalyticsSecretKey);
+            }
+            EditorUtility.SetDirty(settings);
+            Debug.Log($"[Dockside] GameAnalytics: Android platform {(string.IsNullOrEmpty(GameAnalyticsGameKey) ? "added, keys not set yet" : "configured")}.");
         }
 
         /// <summary>

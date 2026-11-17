@@ -93,8 +93,9 @@ namespace Dockside
             var toast = UiFactory.Panel("Toast", safe, new Color(0.18f, 0.13f, 0.12f, 0.9f));
             var trt = (RectTransform)toast.transform;
             trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0); trt.pivot = new Vector2(0.5f, 0);
-            trt.anchoredPosition = new Vector2(0, 290); trt.sizeDelta = new Vector2(900, 100);
+            trt.anchoredPosition = new Vector2(0, 290); trt.sizeDelta = new Vector2(940, 150);
             _toast = UiFactory.Label("ToastText", toast.transform, "", 36, Color.white);
+            ((RectTransform)_toast.transform).offsetMin = new Vector2(30, 8); ((RectTransform)_toast.transform).offsetMax = new Vector2(-30, -8);
             _toastGroup = toast.gameObject.AddComponent<CanvasGroup>();
             _toastGroup.alpha = 0; _toastGroup.blocksRaycasts = false;
 
@@ -138,6 +139,9 @@ namespace Dockside
         public void Toast(string message, float seconds = 1.8f)
         {
             if (_toastRoutine != null) StopCoroutine(_toastRoutine);
+            // Draw toasts above everything, including a dimmed card (e.g. "no video available" on the lose card).
+            _toastGroup.transform.SetParent(transform, true);
+            _toastGroup.transform.SetAsLastSibling();
             _toastRoutine = StartCoroutine(ToastRoutine(message, seconds));
         }
 
@@ -166,16 +170,44 @@ namespace Dockside
         {
             var card = Card("Out of room!", reason, canContinue ? 2 : 1);
             int i = 0;
-            if (canContinue) AddCardButton(card, "Second chance (+2 slots)", _pal.uiGood, secondChance, i++);
+            if (canContinue) AddCardButton(card, "Watch a video: +2 bay slots", _pal.uiGood, secondChance, i++);
             AddCardButton(card, "Retry level", _pal.uiAccent, retry, i);
         }
 
-        public void ShowPause(Action resume, Action restart, Action skip)
+        public void ShowPause(Action resume, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy)
         {
-            var card = Card("Paused", "Prototype build", 3);
+            var card = Card("Paused", "Prototype build", 5);
             AddCardButton(card, "Resume", _pal.uiGood, resume, 0);
-            AddCardButton(card, "Restart level", _pal.uiAccent, restart, 1);
-            AddCardButton(card, "Skip level (test)", Palette.Hex("8A8F98"), skip, 2);
+            AddCardButton(card, soundLabel, Palette.Hex("2F7FE0"), toggleSound, 1);
+            AddCardButton(card, "Privacy", Palette.Hex("9B5DE5"), privacy, 2);
+            AddCardButton(card, "Restart level", _pal.uiAccent, restart, 3);
+            AddCardButton(card, "Skip level (test)", Palette.Hex("8A8F98"), skip, 4);
+        }
+
+        /// <summary>First-launch GDPR question (players in the EU/EEA, UK and Switzerland).</summary>
+        public void ShowAdConsent(Action<bool> answer)
+        {
+            var card = Card("Your privacy",
+                "Ads keep Dockside Dispatch free. Can our ad partners use data from this device to show ads that suit you? " +
+                "You can change this any time under Pause > Privacy.", 2);
+            AddCardButton(card, "Yes, personalise ads", _pal.uiGood, () => answer(true), 0);
+            AddCardButton(card, "No, keep ads general", Palette.Hex("8A8F98"), () => answer(false), 1);
+        }
+
+        /// <summary>Privacy settings: personalised ads (GDPR) and the "do not sell or share" opt-out (CCPA/CPRA).</summary>
+        public void ShowPrivacy(string gdprLabel, Action toggleGdpr, string ccpaLabel, Action toggleCcpa, Action back)
+        {
+            var card = Card("Privacy", "Choose how ad partners may use data from this device.", 3);
+            AddCardButton(card, gdprLabel, Palette.Hex("2F7FE0"), toggleGdpr, 0);
+            AddCardButton(card, ccpaLabel, Palette.Hex("2F7FE0"), toggleCcpa, 1);
+            AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 2);
+        }
+
+        /// <summary>One-off explainer card (tutorial), closed with a single button.</summary>
+        public void ShowTip(string title, string body, Action close)
+        {
+            var card = Card(title, body, 1);
+            AddCardButton(card, "Got it", _pal.uiGood, close, 0);
         }
 
         private int _cardButtons;

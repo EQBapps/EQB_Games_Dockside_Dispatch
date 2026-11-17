@@ -4,7 +4,9 @@
     "references": [
         "Dockside.Core",
         "Unity.InputSystem",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.LevelPlay",
+        "GameAnalyticsSDK"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

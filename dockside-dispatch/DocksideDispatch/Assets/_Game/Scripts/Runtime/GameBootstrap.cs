@@ -19,6 +19,7 @@ namespace Dockside
                 palette = ScriptableObject.CreateInstance<Palette>();
             }
             Shapes.Init(palette);
+            Analytics.Initialize();   // GameAnalytics, if keys are configured
 
             var cam = Camera.main;
             if (cam == null)
