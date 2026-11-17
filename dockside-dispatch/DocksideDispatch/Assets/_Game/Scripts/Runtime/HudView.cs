@@ -158,13 +158,13 @@ namespace Dockside
 
         public void ShowWin(int level, int coinsEarned, Action next)
         {
-            var card = Card("Level complete!", $"Level {level} cleared\n+{coinsEarned} coins");
+            var card = Card("Level complete!", $"Level {level} cleared\n+{coinsEarned} coins", 1);
             AddCardButton(card, "Next level", _pal.uiGood, next, 0);
         }
 
         public void ShowLose(string reason, bool canContinue, Action secondChance, Action retry)
         {
-            var card = Card("Out of room!", reason);
+            var card = Card("Out of room!", reason, canContinue ? 2 : 1);
             int i = 0;
             if (canContinue) AddCardButton(card, "Second chance (+2 slots)", _pal.uiGood, secondChance, i++);
             AddCardButton(card, "Retry level", _pal.uiAccent, retry, i);
@@ -172,20 +172,23 @@ namespace Dockside
 
         public void ShowPause(Action resume, Action restart, Action skip)
         {
-            var card = Card("Paused", "Prototype build");
+            var card = Card("Paused", "Prototype build", 3);
             AddCardButton(card, "Resume", _pal.uiGood, resume, 0);
             AddCardButton(card, "Restart level", _pal.uiAccent, restart, 1);
             AddCardButton(card, "Skip level (test)", Palette.Hex("8A8F98"), skip, 2);
         }
 
-        private RectTransform Card(string title, string body)
+        private int _cardButtons;
+
+        private RectTransform Card(string title, string body, int buttons)
         {
             HidePanels();
             _overlay.gameObject.SetActive(true);
             var card = UiFactory.Panel("Card", _overlay, _pal.uiCream, _pal.uiShadow, 16f);
             var rt = (RectTransform)card.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(860, 900);
+            _cardButtons = buttons;
+            rt.sizeDelta = new Vector2(860, 420 + buttons * 170);
             var t = UiFactory.Rect("Title", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -60), new Vector2(-80, 110));
             UiFactory.Label("TitleText", t, title, 76, _pal.uiText);
             var b = UiFactory.Rect("Body", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -190), new Vector2(-100, 180));
@@ -201,7 +204,7 @@ namespace Dockside
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0);
             rt.pivot = new Vector2(0.5f, 0);
             rt.sizeDelta = new Vector2(680, 140);
-            rt.anchoredPosition = new Vector2(0, 70 + (2 - index) * 170); // stacked from the top: 410, 240, 70
+            rt.anchoredPosition = new Vector2(0, 60 + (_cardButtons - 1 - index) * 170); // first button on top
             UiFactory.Label("Text", b.transform, label, 46, Color.white);
         }
     }

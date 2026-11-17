@@ -43,7 +43,7 @@ namespace Dockside
         public Color cabinWindow = Hex("5BB8D9");
         public Color symbol = new Color(1f, 1f, 1f, 1f);
         public Color locked = Hex("8A8F98");
-        public Color hidden = Hex("6E5A7E");
+        public Color hidden = Hex("4A4F5A");
         public Color keyGold = Hex("FFD24A");
         public Color slotOutline = Hex("C9A27C");
 

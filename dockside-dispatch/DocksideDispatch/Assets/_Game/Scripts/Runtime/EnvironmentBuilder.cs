@@ -85,14 +85,14 @@ namespace Dockside
             for (float bx = -4.2f; bx <= 4.3f; bx += 1.4f)
                 Shapes.Cylinder("Bollard", root, new Vector3(bx, 0.2f, BoardLayout.QuayFarZ - 0.15f), new Vector3(0.16f, 0.22f, 0.16f), Palette.Hex("4A3A33"));
 
-            // ---- Crane (right side of the quay) ----
-            var craneBase = new Vector3(4.05f, 0f, 2.2f);
-            Shapes.Box("CraneLegA", root, craneBase + new Vector3(-0.2f, 1.3f, 0), new Vector3(0.14f, 2.6f, 0.14f), pal.crane);
-            Shapes.Box("CraneLegB", root, craneBase + new Vector3(0.2f, 1.3f, 0), new Vector3(0.14f, 2.6f, 0.14f), pal.craneDark);
-            Shapes.Box("CraneCab", root, craneBase + new Vector3(0, 2.55f, 0), new Vector3(0.55f, 0.4f, 0.5f), pal.crane);
-            Shapes.Box("CraneArm", root, craneBase + new Vector3(-1.2f, 2.85f, 0), new Vector3(2.9f, 0.16f, 0.2f), pal.crane);
-            Shapes.Box("CraneCable", root, craneBase + new Vector3(-2.3f, 2.4f, 0), new Vector3(0.03f, 0.8f, 0.03f), Palette.Hex("4A3A33"), false, false);
-            Shapes.Box("CraneHook", root, craneBase + new Vector3(-2.3f, 1.95f, 0), new Vector3(0.22f, 0.08f, 0.12f), Palette.Hex("4A3A33"), false, false);
+            // ---- Gantry crane (right side of the quay; kept low so it never covers the ships) ----
+            var craneBase = new Vector3(4.15f, 0f, 1.9f);
+            Shapes.Box("CraneLegA", root, craneBase + new Vector3(-0.18f, 0.75f, -0.3f), new Vector3(0.13f, 1.5f, 0.13f), pal.crane);
+            Shapes.Box("CraneLegB", root, craneBase + new Vector3(-0.18f, 0.75f, 0.3f), new Vector3(0.13f, 1.5f, 0.13f), pal.craneDark);
+            Shapes.Box("CraneCab", root, craneBase + new Vector3(-0.18f, 1.55f, 0), new Vector3(0.5f, 0.32f, 0.75f), pal.crane);
+            Shapes.Box("CraneArm", root, craneBase + new Vector3(-1.0f, 1.78f, 0), new Vector3(2.0f, 0.13f, 0.18f), pal.crane);
+            Shapes.Box("CraneCable", root, craneBase + new Vector3(-1.75f, 1.45f, 0), new Vector3(0.03f, 0.55f, 0.03f), Palette.Hex("4A3A33"), false, false);
+            Shapes.Box("CraneHook", root, craneBase + new Vector3(-1.75f, 1.15f, 0), new Vector3(0.2f, 0.07f, 0.12f), Palette.Hex("4A3A33"), false, false);
 
             // ---- Yard ----
             float yardW = layout.Width * BoardLayout.Cell + 0.5f;
