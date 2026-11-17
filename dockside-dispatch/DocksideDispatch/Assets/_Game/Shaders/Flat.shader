@@ -27,6 +27,9 @@ Shader "Dockside/Flat"
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
 
+            // Global (not per material): 0 = day, 1 = night. Set by EnvironmentBuilder from the time-of-day theme.
+            float _DocksideNight;
+
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _BaseColor;
@@ -53,7 +56,9 @@ Shader "Dockside/Flat"
             {
                 half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv);
                 clip(tex.a - _Cutoff);
-                return half4(_BaseColor.rgb * tex.rgb * i.shade, 1);
+                half3 col = _BaseColor.rgb * tex.rgb * i.shade;
+                col *= lerp(half3(1, 1, 1), half3(0.74, 0.79, 0.95), saturate(_DocksideNight));   // cool, dimmer harbour at night
+                return half4(col, 1);
             }
             ENDHLSL
         }

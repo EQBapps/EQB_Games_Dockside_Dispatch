@@ -14,6 +14,9 @@ namespace Dockside
     {
         public const float CameraPitch = 55f;
         private const int WinCoins = 20;
+        /// <summary>Coin prices: boosters when you run out, and a continue after losing (the alternative to a video).</summary>
+        public const int ContinuePrice = 120;
+        public static int BoosterPrice(BoosterType t) => t switch { BoosterType.ExtraBerth => 60, BoosterType.CraneLift => 90, _ => 40 };
         private const int MaxBufferSlots = 7;
 
         private Palette _pal;
@@ -23,7 +26,7 @@ namespace Dockside
 
         private GameSession _session;
         private BoardLayout _layout;
-        private Transform _levelRoot, _yardRoot, _shipsRoot;
+        private Transform _levelRoot, _yardRoot, _shipsRoot, _envRoot;
         private BufferSlotsView _bufferSlots;
         private readonly Dictionary<int, ContainerView> _containers = new Dictionary<int, ContainerView>();
         private ShipView[] _ships;
@@ -83,7 +86,15 @@ namespace Dockside
             _lastAspect = _cam.aspect;
 
             _levelRoot = new GameObject($"Level_{levelNumber}").transform;
-            EnvironmentBuilder.Build(_levelRoot, _layout, _pal, _cam);
+            _envRoot = EnvironmentBuilder.Build(_levelRoot, _layout, _pal, _cam, levelNumber);
+            // A new port every few levels: announce it.
+            int port = PortSkylines.IndexForLevel(levelNumber);
+            if (levelNumber == 1 || port != PortSkylines.IndexForLevel(levelNumber - 1))
+            {
+                int first = (levelNumber - 1) / PortSkylines.LevelsPerPort * PortSkylines.LevelsPerPort + 1;
+                _hud.Banner($"Next stop: {PortSkylines.Names[port]}", $"Levels {first}-{first + PortSkylines.LevelsPerPort - 1}");
+                Analytics.Event("port_arrival", ("port", PortSkylines.Names[port]), ("level", levelNumber));
+            }
 
             _bufferSlots = new GameObject("HoldingBay").AddComponent<BufferSlotsView>();
             _bufferSlots.transform.SetParent(_levelRoot, false);
@@ -371,6 +382,7 @@ namespace Dockside
             _ended = true;
             SaveData.Coins += WinCoins;
             _hud.SetCoins(SaveData.Coins);
+            Analytics.Coins(true, WinCoins, "level_reward", $"level_{_levelNumber:000}");
             SaveData.Level = _levelNumber + 1;
             Analytics.Event("level_complete", ("level", _levelNumber), ("moves", _session.MovesMade),
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("boosters", _boostersUsed), ("second_chance", _usedSecondChance));
@@ -394,7 +406,9 @@ namespace Dockside
             Analytics.Event("level_fail", ("level", _levelNumber), ("reason", _session.LoseReason), ("moves", _session.MovesMade),
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("second_chance", _usedSecondChance));
             Sfx.Play("lose");
-            _hud.ShowLose(reason, !_usedSecondChance, SecondChance, () => StartLevel(_levelNumber));
+            _hud.ShowLose(reason, !_usedSecondChance, SecondChance,
+                coinsLabel: $"Use {ContinuePrice} coins: +2 bay slots", canAffordCoins: SaveData.Coins >= ContinuePrice,
+                continueWithCoins: ContinueWithCoins, retry: () => StartLevel(_levelNumber));
         }
 
         private void SecondChance()
@@ -403,6 +417,27 @@ namespace Dockside
             var ads = AdManager.Instance;
             if (ads == null || !ads.ShowRewarded("second_chance", GrantSecondChance))
                 _hud.Toast("No video is available right now. Try again in a moment.");
+        }
+
+        private void ContinueWithCoins()
+        {
+            if (!TrySpend(ContinuePrice, "continue", "second_chance")) return;
+            GrantSecondChance();
+        }
+
+        /// <summary>Spends coins if the player has enough; otherwise says how many more they need.</summary>
+        private bool TrySpend(int price, string itemType, string itemId)
+        {
+            if (SaveData.Coins < price)
+            {
+                _hud.Toast($"You need {price - SaveData.Coins} more coins. Each level you finish pays {WinCoins}.");
+                return false;
+            }
+            SaveData.Coins -= price;
+            _hud.SetCoins(SaveData.Coins);
+            Sfx.Play("unlock", 0.7f);
+            Analytics.Coins(false, price, itemType, itemId);
+            return true;
         }
 
         private void GrantSecondChance()
@@ -426,15 +461,24 @@ namespace Dockside
             int count = SaveData.Boosters(type);
             if (count <= 0)
             {
-                // Out of this booster: offer a rewarded video for one more.
-                var ads = AdManager.Instance;
-                bool shown = ads != null && ads.ShowRewarded("booster_" + type, () =>
+                // Out of this booster: one more for a video, or buy it with coins.
+                void Give()
                 {
                     SaveData.SetBoosters(type, SaveData.Boosters(type) + 1);
                     _hud.SetBooster(type, SaveData.Boosters(type));
                     _hud.Toast($"+1 {Label(type)}");
-                });
-                if (!shown) _hud.Toast("No video is available right now. Try again in a moment.");
+                }
+                int price = BoosterPrice(type);
+                _hud.ShowBoosterOffer(Label(type), price, SaveData.Coins >= price,
+                    watchVideo: () =>
+                    {
+                        _hud.HidePanels();
+                        var ads = AdManager.Instance;
+                        if (ads == null || !ads.ShowRewarded("booster_" + type, Give))
+                            _hud.Toast("No video is available right now. Try again in a moment.");
+                    },
+                    buy: () => { _hud.HidePanels(); if (TrySpend(price, "booster", type.ToString())) Give(); },
+                    cancel: () => _hud.HidePanels());
                 return;
             }
             switch (type)
@@ -496,7 +540,17 @@ namespace Dockside
                 skip: () => { SaveData.Level = _levelNumber + 1; StartLevel(SaveData.Level); },
                 soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",
                 toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
-                privacy: ShowPrivacy);
+                privacy: ShowPrivacy,
+                skyLabel: SkyTheme.Override < 0 ? $"Sky: Auto ({SkyTheme.Label(SkyTheme.CurrentPhase)})" : $"Sky: {SkyTheme.Label(SkyTheme.CurrentPhase)}",
+                cycleSky: () => { SkyTheme.Override = SkyTheme.Override >= 4 ? -1 : SkyTheme.Override + 1; RebuildEnvironment(); _hud.HidePanels(); OnPause(); },
+                port: PortSkylines.NameForLevel(_levelNumber));
+        }
+
+        /// <summary>Rebuilds only the backdrop and harbour (e.g. after changing the sky preview), keeping the level in progress.</summary>
+        private void RebuildEnvironment()
+        {
+            if (_envRoot) Destroy(_envRoot.gameObject);
+            _envRoot = EnvironmentBuilder.Build(_levelRoot, _layout, _pal, _cam, _levelNumber);
         }
 
         private void ShowPrivacy()

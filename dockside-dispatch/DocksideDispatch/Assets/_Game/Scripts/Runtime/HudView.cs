@@ -166,22 +166,68 @@ namespace Dockside
             AddCardButton(card, "Next level", _pal.uiGood, next, 0);
         }
 
-        public void ShowLose(string reason, bool canContinue, Action secondChance, Action retry)
+        public void ShowLose(string reason, bool canContinue, Action secondChance, string coinsLabel, bool canAffordCoins,
+                             Action continueWithCoins, Action retry)
         {
-            var card = Card("Out of room!", reason, canContinue ? 2 : 1);
+            var card = Card("Out of room!", reason, canContinue ? 3 : 1);
             int i = 0;
-            if (canContinue) AddCardButton(card, "Watch a video: +2 bay slots", _pal.uiGood, secondChance, i++);
+            if (canContinue)
+            {
+                AddCardButton(card, "Watch a video: +2 bay slots", _pal.uiGood, secondChance, i++);
+                AddCardButton(card, coinsLabel, canAffordCoins ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), continueWithCoins, i++);
+            }
             AddCardButton(card, "Retry level", _pal.uiAccent, retry, i);
         }
 
-        public void ShowPause(Action resume, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy)
+        /// <summary>Out of a booster: one more for a video or for coins.</summary>
+        public void ShowBoosterOffer(string booster, int price, bool canAfford, Action watchVideo, Action buy, Action cancel)
         {
-            var card = Card("Paused", "Prototype build", 5);
+            var card = Card($"Out of {booster}", $"Get one more. You have {SaveData.Coins} coins.", 3);
+            AddCardButton(card, "Watch a video: +1", _pal.uiGood, watchVideo, 0);
+            AddCardButton(card, $"Buy 1 for {price} coins", canAfford ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), buy, 1);
+            AddCardButton(card, "Not now", Palette.Hex("8A8F98"), cancel, 2);
+        }
+
+        private RectTransform _banner;
+
+        /// <summary>Non-blocking banner under the top bar (e.g. "Next stop: Singapore").</summary>
+        public void Banner(string title, string subtitle, float seconds = 2.8f)
+        {
+            if (_banner) Destroy(_banner.gameObject);
+            var panel = UiFactory.Panel("Banner", transform, Palette.Hex("4E3F3B"), Palette.Hex("2E2422"), 8f);
+            panel.raycastTarget = false;
+            _banner = (RectTransform)panel.transform;
+            _banner.anchorMin = _banner.anchorMax = new Vector2(0.5f, 1); _banner.pivot = new Vector2(0.5f, 1);
+            _banner.anchoredPosition = new Vector2(0, -230); _banner.sizeDelta = new Vector2(820, 170);
+            var t = UiFactory.Rect("Title", _banner, new Vector2(0, 0.42f), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            UiFactory.Label("TitleText", t, title, 60, _pal.uiCream);
+            var st = UiFactory.Rect("Sub", _banner, new Vector2(0, 0.08f), new Vector2(1, 0.45f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            UiFactory.Label("SubText", st, subtitle, 36, Palette.Hex("E8C25A"), TextAnchor.MiddleCenter, FontStyle.Normal);
+            var group = panel.gameObject.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            group.alpha = 0f;
+            StartCoroutine(BannerRoutine(_banner, group, seconds));
+        }
+
+        private IEnumerator BannerRoutine(RectTransform rt, CanvasGroup group, float seconds)
+        {
+            yield return new WaitForSeconds(0.5f);   // let the ships sail in first
+            yield return Tween.Run(0.35f, e => { if (rt) { group.alpha = e; rt.localScale = Vector3.one * Mathf.LerpUnclamped(0.85f, 1f, e); } }, Tween.EaseOutBack);
+            yield return new WaitForSeconds(seconds);
+            yield return Tween.Run(0.4f, e => { if (rt) group.alpha = 1f - e; });
+            if (rt) Destroy(rt.gameObject);
+        }
+
+        public void ShowPause(Action resume, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy,
+                              string skyLabel, Action cycleSky, string port)
+        {
+            var card = Card("Paused", $"Port: {port}", 6);
             AddCardButton(card, "Resume", _pal.uiGood, resume, 0);
             AddCardButton(card, soundLabel, Palette.Hex("2F7FE0"), toggleSound, 1);
-            AddCardButton(card, "Privacy", Palette.Hex("9B5DE5"), privacy, 2);
-            AddCardButton(card, "Restart level", _pal.uiAccent, restart, 3);
-            AddCardButton(card, "Skip level (test)", Palette.Hex("8A8F98"), skip, 4);
+            AddCardButton(card, skyLabel, Palette.Hex("2F7FE0"), cycleSky, 2);
+            AddCardButton(card, "Privacy", Palette.Hex("9B5DE5"), privacy, 3);
+            AddCardButton(card, "Restart level", _pal.uiAccent, restart, 4);
+            AddCardButton(card, "Skip level (test)", Palette.Hex("8A8F98"), skip, 5);
         }
 
         /// <summary>First-launch GDPR question (players in the EU/EEA, UK and Switzerland).</summary>

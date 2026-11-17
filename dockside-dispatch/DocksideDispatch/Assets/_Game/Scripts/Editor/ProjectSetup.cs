@@ -80,8 +80,8 @@ namespace Dockside.EditorTools
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-            PlayerSettings.bundleVersion = "0.3.0";
-            PlayerSettings.Android.bundleVersionCode = 3;   // must increase for each build installed over the last
+            PlayerSettings.bundleVersion = "0.4.0";
+            PlayerSettings.Android.bundleVersionCode = 4;   // must increase for each build installed over the last
 
             ConfigureSplash();
             ConfigureMobileRendering();
@@ -171,6 +171,9 @@ namespace Dockside.EditorTools
                 settings.UpdateGameKey(i, GameAnalyticsGameKey);
                 settings.UpdateSecretKey(i, GameAnalyticsSecretKey);
             }
+            // Resource events (coins earned/spent) must use currencies and item types declared up front.
+            settings.ResourceCurrencies = new System.Collections.Generic.List<string> { "coins" };
+            settings.ResourceItemTypes = new System.Collections.Generic.List<string> { "level_reward", "booster", "continue" };
             EditorUtility.SetDirty(settings);
             Debug.Log($"[Dockside] GameAnalytics: Android platform {(string.IsNullOrEmpty(GameAnalyticsGameKey) ? "added, keys not set yet" : "configured")}.");
         }

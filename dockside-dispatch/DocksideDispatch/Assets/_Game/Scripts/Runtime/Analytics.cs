@@ -82,6 +82,14 @@ namespace Dockside
             if (_gaReady) GameAnalytics.NewDesignEvent($"AdRevenue:{Clean(format)}:{Clean(network)}", (float)revenueUsd);
         }
 
+        /// <summary>Coins earned (source) or spent (sink), as a GameAnalytics resource event.</summary>
+        public static void Coins(bool earned, int amount, string itemType, string itemId)
+        {
+            Debug.Log($"[Analytics] coins_{(earned ? "earned" : "spent")} amount={amount} type={itemType} id={itemId}");
+            if (_gaReady)
+                GameAnalytics.NewResourceEvent(earned ? GAResourceFlowType.Source : GAResourceFlowType.Sink, "coins", amount, itemType, Clean(itemId));
+        }
+
         private static string Level(Dictionary<string, object> f) => $"level_{ToInt(f, "level"):000}";
 
         private static int ToInt(Dictionary<string, object> f, string key) =>
