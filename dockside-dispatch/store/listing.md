@@ -55,7 +55,8 @@ The screenshots show:
 
 **Category:** Game › Puzzle
 **Tags:** Puzzle, Casual, Sorting, Relaxing, Offline
-**Contact email:** _(EQB support address)_
+**Contact email:** contact@eqbsolutions.com
+**Developer:** EQB Business Solutions Private Limited, Hyderabad, India (eqbsolutions.com)
 **Privacy policy URL:** _(required because of ads and analytics)_. The draft page is `privacy-policy.html`: fill in the highlighted placeholders, have it reviewed, then host it on EQB's website and paste its address here.
 
 ## Still needed before submitting
