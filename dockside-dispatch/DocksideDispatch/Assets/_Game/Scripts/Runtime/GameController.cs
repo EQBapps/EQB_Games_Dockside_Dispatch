@@ -14,8 +14,8 @@ namespace Dockside
     {
         public const float CameraPitch = 55f;
         private const int WinCoins = 20;
-        /// <summary>Test tools (Skip level, Sky preview) are available in the editor and development builds only.</summary>
-        private static bool DevTools => Application.isEditor || Debug.isDebugBuild;
+        /// <summary>Test tools (Go to level, Skip level, Sky preview): editor and test-tools builds only (see BuildFlags).</summary>
+        private static bool DevTools => BuildFlags.TestTools;
         /// <summary>Coin prices: boosters when you run out, and a continue after losing (the alternative to a video).</summary>
         public const int ContinuePrice = 120;
         public static int BoosterPrice(BoosterType t) => t switch { BoosterType.ExtraBerth => 60, BoosterType.CraneLift => 90, _ => 40 };
@@ -571,9 +571,19 @@ namespace Dockside
                 soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",
                 toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
                 privacy: ShowPrivacy,
+                goToLevel: DevTools ? ShowLevelPicker : (System.Action)null,
                 skyLabel: SkyTheme.Override < 0 ? $"Sky: Auto ({SkyTheme.Label(SkyTheme.CurrentPhase)})" : $"Sky: {SkyTheme.Label(SkyTheme.CurrentPhase)}",
                 cycleSky: DevTools ? () => { SkyTheme.Override = SkyTheme.Override >= 4 ? -1 : SkyTheme.Override + 1; RebuildEnvironment(); _hud.HidePanels(); OnPause(); } : (System.Action)null,
                 port: PortSkylines.NameForLevel(_levelNumber));
+        }
+
+        /// <summary>Test tool: pick any level (and so any port) and play it straight away.</summary>
+        private void ShowLevelPicker()
+        {
+            _hud.ShowLevelPicker(_levelNumber, LevelGenerator.AuthoredLevelCount,
+                n => $"Level {n}\n{PortSkylines.NameForLevel(n)}",
+                go: n => { SaveData.Level = n; _hud.HidePanels(); StartLevel(n); },
+                back: () => { _hud.HidePanels(); OnPause(); });
         }
 
         /// <summary>Rebuilds only the backdrop and harbour (e.g. after changing the sky preview), keeping the level in progress.</summary>

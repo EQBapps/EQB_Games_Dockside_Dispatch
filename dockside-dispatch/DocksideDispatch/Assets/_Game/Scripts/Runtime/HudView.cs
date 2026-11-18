@@ -219,7 +219,7 @@ namespace Dockside
         }
 
         public void ShowPause(Action resume, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy,
-                              string skyLabel, Action cycleSky, string port)
+                              string skyLabel, Action cycleSky, string port, Action goToLevel = null)
         {
             // Sky preview and Skip level are test tools: the caller passes null for them in release builds.
             var buttons = new System.Collections.Generic.List<(string label, Color color, Action action)>
@@ -230,6 +230,7 @@ namespace Dockside
             if (cycleSky != null) buttons.Add((skyLabel, Palette.Hex("2F7FE0"), cycleSky));
             buttons.Add(("Privacy", Palette.Hex("9B5DE5"), privacy));
             buttons.Add(("Restart level", _pal.uiAccent, restart));
+            if (goToLevel != null) buttons.Add(("Go to level... (test)", Palette.Hex("8A8F98"), goToLevel));
             if (skip != null) buttons.Add(("Skip level (test)", Palette.Hex("8A8F98"), skip));
             var card = Card("Paused", $"Port: {port}", buttons.Count);
             for (int i = 0; i < buttons.Count; i++) AddCardButton(card, buttons[i].label, buttons[i].color, buttons[i].action, i);
@@ -278,6 +279,31 @@ namespace Dockside
             UiFactory.Label("BodyText", b, body, 44, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
             StartCoroutine(Tween.Run(0.3f, e => { if (rt) rt.localScale = Vector3.one * Mathf.LerpUnclamped(0.8f, 1f, e); }, Tween.EaseOutBack));
             return rt;
+        }
+
+        /// <summary>Test tool: step through levels with -5/-1/+1/+5 (5 = one port) and play the chosen one.</summary>
+        public void ShowLevelPicker(int start, int max, Func<int, string> describe, Action<int> go, Action back)
+        {
+            int level = Mathf.Clamp(start, 1, max);
+            var card = Card("Go to level", describe(level), 3);
+            var body = card.Find("Body/BodyText").GetComponent<Text>();
+            body.fontSize = 56;
+            body.font = UiFactory.FontBold;
+            body.color = _pal.uiText;
+            var row = UiFactory.Rect("Steps", card, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 400), new Vector2(680, 140));
+            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 20; layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = layout.childControlHeight = false;
+            foreach (int step in new[] { -5, -1, 1, 5 })
+            {
+                int d = step;
+                var b = UiFactory.Button(step > 0 ? $"+{step}" : step.ToString(), row, Palette.Hex("2F7FE0"), Palette.Darken(Palette.Hex("2F7FE0"), 0.3f),
+                    () => { level = Mathf.Clamp(level + d, 1, max); body.text = describe(level); }, $"step{step}");
+                ((RectTransform)b.transform).sizeDelta = new Vector2(155, 130);
+                UiFactory.Label("Text", b.transform, step > 0 ? $"+{step}" : step.ToString(), 50, Color.white);
+            }
+            AddCardButton(card, "Play this level", _pal.uiGood, () => go(level), 1);
+            AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 2);
         }
 
         private void AddCardButton(RectTransform card, string label, Color color, Action onClick, int index)

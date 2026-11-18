@@ -21,6 +21,10 @@ namespace Dockside.EditorTools
         [MenuItem("Dockside/Build Android APK (ad test suite)")]
         public static void BuildAndroidApkAdTest() => Build(true);
 
+        /// <summary>Release-style build with the test tools (Go to level, Skip level, Sky preview) compiled in.</summary>
+        [MenuItem("Dockside/Build Android APK (test tools)")]
+        public static void BuildAndroidApkTestTools() => Build(false, testTools: true);
+
         /// <summary>Both APKs in one go (batch: -executeMethod Dockside.EditorTools.BuildTools.BuildAndroidBoth).</summary>
         public static void BuildAndroidBoth()
         {
@@ -28,7 +32,7 @@ namespace Dockside.EditorTools
             if (Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
         }
 
-        private static bool Build(bool adTestSuite, bool exitWhenDone = true)
+        private static bool Build(bool adTestSuite, bool exitWhenDone = true, bool testTools = false)
         {
             ProjectSetup.ConfigureSplash();
             ProjectSetup.ConfigureMobileRendering();
@@ -48,7 +52,7 @@ namespace Dockside.EditorTools
 
             string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "Android"));
             Directory.CreateDirectory(dir);
-            string apk = Path.Combine(dir, $"DocksideDispatch-{PlayerSettings.bundleVersion}-{PlayerSettings.Android.bundleVersionCode}{(adTestSuite ? "-adtest" : "")}.apk");
+            string apk = Path.Combine(dir, $"DocksideDispatch-{PlayerSettings.bundleVersion}-{PlayerSettings.Android.bundleVersionCode}{(adTestSuite ? "-adtest" : "")}{(testTools ? "-testtools" : "")}.apk");
 
             var options = new BuildPlayerOptions
             {
@@ -57,6 +61,7 @@ namespace Dockside.EditorTools
                 target = BuildTarget.Android,
                 targetGroup = BuildTargetGroup.Android,
                 options = adTestSuite ? BuildOptions.Development : BuildOptions.None,
+                extraScriptingDefines = testTools ? new[] { "DOCKSIDE_TEST_TOOLS" } : null,
             };
             var report = BuildPipeline.BuildPlayer(options);
             var s = report.summary;
