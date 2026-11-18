@@ -19,13 +19,21 @@ namespace Dockside.Core
 
     public static class LevelGenerator
     {
-        public const int AuthoredLevelCount = 30;
+        public const int AuthoredLevelCount = 100;
+        /// <summary>After the last authored level, the campaign keeps looping the final stretch (81-100).</summary>
+        public const int LoopStart = 81;
+
+        /// <summary>The authored level a level number plays (levels past the campaign loop the final stretch).</summary>
+        public static int Canonical(int level)
+        {
+            if (level < 1) return 1;
+            return level <= AuthoredLevelCount ? level : LoopStart + (level - LoopStart) % (AuthoredLevelCount - LoopStart + 1);
+        }
 
         /// <summary>Difficulty curve for the prototype's 30 levels, with a small sawtooth (every 5th level is a spike).</summary>
         public static LevelParams ParamsFor(int level)
         {
-            if (level < 1) level = 1;
-            int n = level > AuthoredLevelCount ? 21 + (level - 1) % 10 : level; // after 30, loop the late game
+            int n = Canonical(level);
             var p = new LevelParams { berths = 3, buffer = 5, minCapacity = 3, maxCapacity = 3, fill = 0.8f };
 
             if (n <= 2)        { p.width = 4; p.height = 3 + (n - 1); p.colors = 2; p.fill = 0.75f; }
@@ -36,7 +44,24 @@ namespace Dockside.Core
             else if (n <= 17)  { p.width = 6; p.height = 6; p.colors = 4; p.longChance = 0.25f; p.maxCapacity = 4; p.locks = 1; p.fill = 0.88f; }
             else if (n <= 21)  { p.width = 6; p.height = 6; p.colors = 4; p.longChance = 0.25f; p.maxCapacity = 4; p.locks = 1; p.hiddenChance = 0.12f; p.fill = 0.88f; }
             else if (n <= 25)  { p.width = 6; p.height = 7; p.colors = 5; p.longChance = 0.25f; p.maxCapacity = 4; p.locks = 1; p.hiddenChance = 0.15f; p.fill = 0.86f; }
-            else               { p.width = 6; p.height = 7; p.colors = 5; p.longChance = 0.3f; p.maxCapacity = 4; p.locks = 2; p.hiddenChance = 0.2f; p.fill = 0.88f; }
+            else if (n <= 30)  { p.width = 6; p.height = 7; p.colors = 5; p.longChance = 0.3f; p.maxCapacity = 4; p.locks = 2; p.hiddenChance = 0.2f; p.fill = 0.88f; }
+            else
+            {
+                // Levels 31-100: the late game, rising gently in blocks of ten, with themed variety inside each block
+                // so consecutive levels feel different (more locks, more mystery containers, more long containers).
+                int block = (n - 31) / 10;                                   // 0..6
+                p.width = 6; p.height = 7; p.colors = 5; p.maxCapacity = 4;
+                p.longChance = Math.Min(0.36f, 0.26f + 0.015f * block);
+                p.locks = Math.Min(3, 1 + (block + 1) / 3);
+                p.hiddenChance = Math.Min(0.28f, 0.16f + 0.02f * block);
+                p.fill = Math.Min(0.9f, 0.86f + 0.006f * block);
+                switch (n % 10)
+                {
+                    case 2: case 7: p.locks = Math.Min(4, p.locks + 1); break;              // lock-heavy
+                    case 3: case 8: p.hiddenChance = Math.Min(0.36f, p.hiddenChance + 0.1f); break; // foggy: many "?" containers
+                    case 4: p.longChance = Math.Min(0.45f, p.longChance + 0.1f); break;     // long-container heavy
+                }
+            }
 
             // Sawtooth: spike every 5th level, breather right after.
             if (n % 5 == 0) p.fill = Math.Min(0.95f, p.fill + 0.06f);
@@ -47,8 +72,10 @@ namespace Dockside.Core
         /// <summary>Target casual-player win rate for a level: easy tutorial, then a rising curve with spikes every 5th level.</summary>
         public static (float min, float max) TargetWinRate(int level)
         {
-            int n = level > AuthoredLevelCount ? 21 + (level - 1) % 10 : level;
-            (float min, float max) band = n <= 3 ? (0.6f, 1f) : n <= 10 ? (0.35f, 0.85f) : n <= 20 ? (0.2f, 0.65f) : (0.08f, 0.5f);
+            int n = Canonical(level);
+            (float min, float max) band = n <= 3 ? (0.6f, 1f) : n <= 10 ? (0.35f, 0.85f) : n <= 20 ? (0.2f, 0.65f) : n <= 30 ? (0.08f, 0.5f)
+                : (0.06f, 0.45f);
+            if (n > 30 && n % 5 == 1) band = (0.2f, 0.6f);   // breather after each spike
             if (n % 5 == 0) band = (Math.Max(0.03f, band.min - 0.08f), band.max - 0.2f);
             return band;
         }

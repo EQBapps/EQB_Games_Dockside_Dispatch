@@ -14,6 +14,8 @@ namespace Dockside
     {
         public const float CameraPitch = 55f;
         private const int WinCoins = 20;
+        /// <summary>Test tools (Skip level, Sky preview) are available in the editor and development builds only.</summary>
+        private static bool DevTools => Application.isEditor || Debug.isDebugBuild;
         /// <summary>Coin prices: boosters when you run out, and a continue after losing (the alternative to a video).</summary>
         public const int ContinuePrice = 120;
         public static int BoosterPrice(BoosterType t) => t switch { BoosterType.ExtraBerth => 60, BoosterType.CraneLift => 90, _ => 40 };
@@ -229,7 +231,9 @@ namespace Dockside
                 case TapResult.Locked:
                     StartCoroutine(Tween.Shake(view.transform));
                     Sfx.Play("blocked", 0.7f);
-                    _hud.Toast("Locked: send off the container with the key, or lift it out with Crane Lift");
+                    _hud.Toast(_craneArmed
+                        ? "Crane Lift can't move a locked container. Send off the one with the gold key first."
+                        : "Locked: send off the container with the gold key first");
                     break;
                 case TapResult.NoRoom:
                     StartCoroutine(Tween.Shake(view.transform));
@@ -563,12 +567,12 @@ namespace Dockside
             _hud.ShowPause(
                 resume: () => _hud.HidePanels(),
                 restart: () => StartLevel(_levelNumber),
-                skip: () => { SaveData.Level = _levelNumber + 1; StartLevel(SaveData.Level); },
+                skip: DevTools ? () => { SaveData.Level = _levelNumber + 1; StartLevel(SaveData.Level); } : (System.Action)null,
                 soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",
                 toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
                 privacy: ShowPrivacy,
                 skyLabel: SkyTheme.Override < 0 ? $"Sky: Auto ({SkyTheme.Label(SkyTheme.CurrentPhase)})" : $"Sky: {SkyTheme.Label(SkyTheme.CurrentPhase)}",
-                cycleSky: () => { SkyTheme.Override = SkyTheme.Override >= 4 ? -1 : SkyTheme.Override + 1; RebuildEnvironment(); _hud.HidePanels(); OnPause(); },
+                cycleSky: DevTools ? () => { SkyTheme.Override = SkyTheme.Override >= 4 ? -1 : SkyTheme.Override + 1; RebuildEnvironment(); _hud.HidePanels(); OnPause(); } : (System.Action)null,
                 port: PortSkylines.NameForLevel(_levelNumber));
         }
 

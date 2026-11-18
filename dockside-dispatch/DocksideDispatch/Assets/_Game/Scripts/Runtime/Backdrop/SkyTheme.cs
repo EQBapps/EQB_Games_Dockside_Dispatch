@@ -39,7 +39,9 @@ namespace Dockside
             return DayPhase.Night;
         }
 
-        public static DayPhase CurrentPhase => Override >= 0 ? (DayPhase)Mathf.Clamp(Override, 0, 4) : PhaseFromClock(System.DateTime.Now);
+        // The preview override is a test tool: release builds always follow the clock.
+        public static DayPhase CurrentPhase => Override >= 0 && (Application.isEditor || Debug.isDebugBuild)
+            ? (DayPhase)Mathf.Clamp(Override, 0, 4) : PhaseFromClock(System.DateTime.Now);
 
         public static string Label(DayPhase p) => p switch
         {

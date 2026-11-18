@@ -221,13 +221,18 @@ namespace Dockside
         public void ShowPause(Action resume, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy,
                               string skyLabel, Action cycleSky, string port)
         {
-            var card = Card("Paused", $"Port: {port}", 6);
-            AddCardButton(card, "Resume", _pal.uiGood, resume, 0);
-            AddCardButton(card, soundLabel, Palette.Hex("2F7FE0"), toggleSound, 1);
-            AddCardButton(card, skyLabel, Palette.Hex("2F7FE0"), cycleSky, 2);
-            AddCardButton(card, "Privacy", Palette.Hex("9B5DE5"), privacy, 3);
-            AddCardButton(card, "Restart level", _pal.uiAccent, restart, 4);
-            AddCardButton(card, "Skip level (test)", Palette.Hex("8A8F98"), skip, 5);
+            // Sky preview and Skip level are test tools: the caller passes null for them in release builds.
+            var buttons = new System.Collections.Generic.List<(string label, Color color, Action action)>
+            {
+                ("Resume", _pal.uiGood, resume),
+                (soundLabel, Palette.Hex("2F7FE0"), toggleSound),
+            };
+            if (cycleSky != null) buttons.Add((skyLabel, Palette.Hex("2F7FE0"), cycleSky));
+            buttons.Add(("Privacy", Palette.Hex("9B5DE5"), privacy));
+            buttons.Add(("Restart level", _pal.uiAccent, restart));
+            if (skip != null) buttons.Add(("Skip level (test)", Palette.Hex("8A8F98"), skip));
+            var card = Card("Paused", $"Port: {port}", buttons.Count);
+            for (int i = 0; i < buttons.Count; i++) AddCardButton(card, buttons[i].label, buttons[i].color, buttons[i].action, i);
         }
 
         /// <summary>First-launch GDPR question (players in the EU/EEA, UK and Switzerland).</summary>

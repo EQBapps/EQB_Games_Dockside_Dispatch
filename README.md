@@ -20,6 +20,7 @@ This repository holds the market research, the art direction and the first game 
 | `dockside-dispatch/art-direction/` | Four art directions for Dockside Dispatch. **Option A, Golden Hour Harbour**, was chosen. |
 | `dockside-dispatch/DocksideDispatch/` | The Unity project. |
 | `dockside-dispatch/Screenshots/` | Screenshots from automated play-tests. |
+| `dockside-dispatch/store/` | Google Play listing draft (`listing.md`), store graphics (`play/`) and raw captures. |
 | `branding/` | EQB Games logo (original and transparent cut-out). `branding/dockside-dispatch/` has the game logo and app icon, with the HTML sources they were rendered from. |
 
 ## Dockside Dispatch
@@ -50,7 +51,7 @@ After a loss there is a one-time **second chance**. Rewarded ads are placeholder
 
 ### Levels
 
-There are 30 levels, baked to `Assets/_Game/Resources/Levels/level_NN.json`. After level 30, levels 21–30 repeat.
+There are 100 levels, baked to `Assets/_Game/Resources/Levels/level_NN.json`. After level 100, levels 81–100 repeat. The port skyline in the background changes every 5 levels (Hong Kong, Singapore, Dubai, Mumbai, Amsterdam, Los Angeles, Sydney, Rotterdam), and the sky follows the player's local time of day.
 
 - **Generation:** levels are generated deterministically from a seed (`LevelGenerator`).
 - **Solvability:** an exhaustive solver checks that every level can be won (`Solver.Solve`).
@@ -105,7 +106,7 @@ The **Dockside** menu in the editor has these commands:
 | Menu item | Purpose |
 |---|---|
 | Setup Project | Recreates the materials, palette and Main scene, and sets player settings, splash, app icon and mobile rendering |
-| Bake Levels | Regenerates `level_01..30.json` |
+| Bake Levels | Regenerates `level_01..100.json` |
 | Report Levels | Logs size and solver statistics for every level |
 | Build Android APK | Builds `Builds/Android/DocksideDispatch-<version>-<code>.apk` |
 

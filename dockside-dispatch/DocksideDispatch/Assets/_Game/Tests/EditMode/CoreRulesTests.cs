@@ -182,7 +182,7 @@ namespace Dockside.Tests
         }
 
         [Test]
-        public void CraneLiftTakesLockedContainers()
+        public void CraneLiftCannotTakeLockedContainers_KeyStillUnlocksThem()
         {
             var level = new LevelData
             {
@@ -196,12 +196,13 @@ namespace Dockside.Tests
             };
             var s = new GameSession(level);
             Assert.AreEqual(TapResult.Locked, s.Tap(0));
+            Assert.AreEqual(TapResult.Locked, s.Tap(0, null, ignorePath: true));   // the crane cannot take a locked container
+            Assert.IsTrue(s.IsLocked(0));
+            // Sending off the key container unlocks it, then it moves normally and the level can be won.
             var ev = new List<GameEvent>();
-            Assert.AreEqual(TapResult.Accepted, s.Tap(0, ev, ignorePath: true));
-            Assert.IsFalse(s.IsLocked(0));
+            Assert.AreEqual(TapResult.Accepted, s.Tap(1, ev));
             Assert.IsTrue(ev.Any(e => e.type == GameEventType.ContainerUnlocked && e.containerId == 0));
-            // The key container still works normally afterwards and the level can be won.
-            Assert.AreEqual(TapResult.Accepted, s.Tap(1));
+            Assert.AreEqual(TapResult.Accepted, s.Tap(0));
             Assert.IsTrue(s.IsWon);
         }
 
@@ -216,6 +217,7 @@ namespace Dockside.Tests
     public class LevelGenerationTests
     {
         [Test]
+        [Timeout(900000)]   // 100 levels, each generated twice to check determinism (about 4 minutes in the editor)
         public void AllPrototypeLevelsAreValidSolvableAndDeterministic()
         {
             for (int n = 1; n <= LevelGenerator.AuthoredLevelCount; n++)
@@ -242,6 +244,11 @@ namespace Dockside.Tests
             var late = LevelGenerator.Generate(28);
             Assert.Less(early.containers.Count, late.containers.Count);
             Assert.Less(early.colorCount, late.colorCount);
+            // The late campaign keeps every mechanic in play, and levels past 100 loop the final stretch.
+            var veryLate = LevelGenerator.Generate(97);
+            Assert.GreaterOrEqual(veryLate.colorCount, late.colorCount);
+            Assert.AreEqual(81, LevelGenerator.Canonical(101));
+            Assert.AreEqual(100, LevelGenerator.Canonical(120));
         }
     }
 }

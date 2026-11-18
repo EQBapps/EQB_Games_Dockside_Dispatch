@@ -17,7 +17,7 @@ namespace Dockside
         public static LevelData Get(int levelNumber)
         {
             int n = levelNumber;
-            if (n > LevelGenerator.AuthoredLevelCount) n = 21 + (n - 1) % 10;
+            n = LevelGenerator.Canonical(n);
             var asset = Resources.Load<TextAsset>($"{Folder}/{FileName(n)}");
             if (asset != null)
             {
