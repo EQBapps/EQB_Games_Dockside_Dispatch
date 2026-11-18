@@ -56,13 +56,13 @@ The screenshots show:
 **Category:** Game › Puzzle
 **Tags:** Puzzle, Casual, Sorting, Relaxing, Offline
 **Contact email:** _(EQB support address)_
-**Privacy policy URL:** _(required because of ads and analytics; to be published by EQB)_
+**Privacy policy URL:** _(required because of ads and analytics)_. The draft page is `privacy-policy.html`: fill in the highlighted placeholders, have it reviewed, then host it on EQB's website and paste its address here.
 
 ## Still needed before submitting
 
 - **Google Play developer account** for EQB. An organisation account needs a D-U-N-S number.
 - **Upload key and app bundle (AAB).** The current APKs are debug-signed for testing. Google Play needs an AAB signed with an upload key that EQB keeps safe.
-- **Privacy policy page.** It must cover LevelPlay ads (advertising ID, consent), GameAnalytics (gameplay analytics) and the on-device save.
+- **Privacy policy page.** Drafted in `privacy-policy.html`, covering LevelPlay ads (advertising ID, consent), GameAnalytics (gameplay analytics) and the on-device save. It needs EQB's details, a legal review and hosting.
 - **Data safety form.** It covers the advertising ID, app interactions and diagnostics, collected by the ad and analytics SDKs.
 - **Content rating questionnaire (IARC).** Expected "Everyone", with ads.
 - **Ads declaration:** "Contains ads". **Target audience:** set it so the game is not primarily for children, which matches the non-COPPA ad setup.
