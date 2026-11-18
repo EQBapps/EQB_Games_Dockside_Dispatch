@@ -192,8 +192,17 @@ namespace Dockside
         {
             int levelNumber = _levelNumber;
             // A new port every few levels (the city skyline behind both modes): announce it.
+            if (_mode == GameMode.Unload && !SaveData.UnloadPlayed) { SaveData.UnloadPlayed = true; SaveData.UnloadRemindAt = 0; }
             int port = PortSkylines.IndexForLevel(levelNumber);
-            if (levelNumber == 1 || port != PortSkylines.IndexForLevel(levelNumber - 1))
+            bool portBanner = levelNumber == 1 || port != PortSkylines.IndexForLevel(levelNumber - 1);
+            // One-time nudge for a player who chose "Keep loading" (not on a level that already announces a new port).
+            if (_mode == GameMode.Load && !portBanner && SaveData.UnloadRemindAt > 0 && levelNumber >= SaveData.UnloadRemindAt && !SaveData.UnloadPlayed)
+            {
+                SaveData.UnloadRemindAt = 0;
+                _hud.Banner("Unload mode is waiting", "Pause > Game modes");
+                Analytics.Event("unload_reminder", ("level", levelNumber));
+            }
+            if (portBanner)
             {
                 int first = (levelNumber - 1) / PortSkylines.LevelsPerPort * PortSkylines.LevelsPerPort + 1;
                 _hud.Banner(_mode == GameMode.Unload ? $"Unloading in {PortSkylines.Names[port]}" : $"Next stop: {PortSkylines.Names[port]}",
@@ -498,13 +507,34 @@ namespace Dockside
             // Interstitials start once the player has finished enough levels in total (both modes count), so a player
             // deep into Load sees the same ad pacing when they switch to Unload level 1.
             int finished = (SaveData.Level - 1) + (SaveData.LevelFor(GameMode.Unload) - 1);
+            bool unlockedNow = wasLocked && SaveData.UnloadUnlocked;
             _hud.ShowWin(_levelNumber, WinCoins, () =>
             {
+                // The win that unlocks Unload ends with the unlock card (no ad on top of the celebration).
+                if (unlockedNow) { ShowUnloadUnlocked(); return; }
                 // A capped, opportunistic interstitial between levels; the game never waits for an ad.
                 var ads = AdManager.Instance;
                 if (ads == null || !ads.TryShowInterstitialAfterLevel(finished, () => StartLevel(SaveData.LevelFor(_mode))))
                     StartLevel(SaveData.LevelFor(_mode));
             });
+        }
+
+        /// <summary>"New mode unlocked" card after the win that opens Unload: try it now, or keep loading (reminded later).</summary>
+        private void ShowUnloadUnlocked()
+        {
+            Sfx.Play("unlock");
+            _hud.ShowUnlock(
+                tryIt: () =>
+                {
+                    Analytics.Event("unlock_choice", ("choice", "try_unload"));
+                    StartLevel(GameMode.Unload, SaveData.LevelFor(GameMode.Unload));
+                },
+                keepLoading: () =>
+                {
+                    Analytics.Event("unlock_choice", ("choice", "keep_loading"));
+                    SaveData.UnloadRemindAt = SaveData.Level + 2;
+                    StartLevel(SaveData.LevelFor(GameMode.Load));
+                });
         }
 
         private void OnLost()

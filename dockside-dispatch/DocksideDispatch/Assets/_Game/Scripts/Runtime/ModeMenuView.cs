@@ -29,6 +29,7 @@ namespace Dockside
         private Button _left, _right, _play;
         private readonly Text[] _levelTexts = new Text[2];
         private readonly Image[] _barFills = new Image[2];
+        private GameObject _newBadge;
         private int _index;
         private float _dragStartX, _cardsX;
         private Coroutine _slide;
@@ -150,6 +151,18 @@ namespace Dockside
             frt.anchorMin = new Vector2(0, 0); frt.anchorMax = new Vector2(0, 1); frt.pivot = new Vector2(0, 0.5f);
             frt.anchoredPosition = Vector2.zero; frt.sizeDelta = new Vector2(30, 0);
             _barFills[i] = fill;
+
+            // Unload: a "NEW" tag on the card's corner until the player has tried the mode.
+            if (mode == GameMode.Unload)
+            {
+                var tag = UiFactory.Panel("NewTag", rt, UnloadAccent, Palette.Hex("2E2422"), 6f);
+                var trt = (RectTransform)tag.transform;
+                trt.anchorMin = trt.anchorMax = new Vector2(1, 1); trt.pivot = new Vector2(0.5f, 0.5f);
+                trt.anchoredPosition = new Vector2(-60, -6); trt.sizeDelta = new Vector2(140, 64);
+                trt.localRotation = Quaternion.Euler(0, 0, -8f);
+                UiFactory.Label("Text", tag.transform, "NEW", 38, Color.white);
+                _newBadge = tag.gameObject;
+            }
         }
 
         private Button Arrow(string name, Transform parent, int dir)
@@ -222,6 +235,7 @@ namespace Dockside
                 ((RectTransform)_barFills[i].transform).sizeDelta = new Vector2(Mathf.Max(30f, 560f * Mathf.Clamp01(share)), 0);
                 _dots[i].color = i == _index ? Accent(m) : Palette.Hex("CDBFAE");
             }
+            if (_newBadge) _newBadge.SetActive(SaveData.UnloadUnlocked && !SaveData.UnloadPlayed);
             var sel = Selected;
             bool selLocked = sel == GameMode.Unload && !SaveData.UnloadUnlocked;
             _ribbonImg.color = Accent(sel);

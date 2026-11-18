@@ -182,6 +182,21 @@ namespace Dockside
             AddCardButton(card, "Retry level", _pal.uiAccent, retry, i);
         }
 
+        /// <summary>After the win that unlocks Unload: a "new mode" card with the choice to try it now or keep loading.</summary>
+        public void ShowUnlock(Action tryIt, Action keepLoading)
+        {
+            var card = Card("New mode unlocked!", "UNLOAD: a ship has come in full.\nSend each container to the truck of its colour.", 2);
+            // A "NEW" tag on the card's corner, in the Unload colour.
+            var tag = UiFactory.Panel("NewTag", card, Palette.Hex("EE8A2B"), Palette.Hex("2E2422"), 6f);
+            var trt = (RectTransform)tag.transform;
+            trt.anchorMin = trt.anchorMax = new Vector2(1, 1); trt.pivot = new Vector2(0.5f, 0.5f);
+            trt.anchoredPosition = new Vector2(-70, -14); trt.sizeDelta = new Vector2(150, 70);
+            trt.localRotation = Quaternion.Euler(0, 0, -8f);
+            UiFactory.Label("Text", tag.transform, "NEW", 40, Color.white);
+            AddCardButton(card, "Try Unload", Palette.Hex("EE8A2B"), tryIt, 0);
+            AddCardButton(card, "Keep loading", Palette.Hex("2F7FE0"), keepLoading, 1);
+        }
+
         /// <summary>Out of a booster: one more for a video or for coins.</summary>
         public void ShowBoosterOffer(string booster, int price, bool canAfford, Action watchVideo, Action buy, Action cancel)
         {

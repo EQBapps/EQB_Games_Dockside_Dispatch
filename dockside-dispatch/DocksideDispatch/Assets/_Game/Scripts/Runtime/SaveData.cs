@@ -37,6 +37,22 @@ namespace Dockside
 
         public static bool UnloadUnlocked => Level >= UnloadUnlockLevel;
 
+        private const string UnloadPlayedKey = "dd.unload.played", UnloadRemindKey = "dd.unload.remind_at";
+
+        /// <summary>The player has started an Unload level at least once (clears the menu's NEW badge and the reminder).</summary>
+        public static bool UnloadPlayed
+        {
+            get => PlayerPrefs.GetInt(UnloadPlayedKey, 0) == 1;
+            set { PlayerPrefs.SetInt(UnloadPlayedKey, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>Load level at which to remind a player who chose "Keep loading" that Unload is waiting (0 = no reminder).</summary>
+        public static int UnloadRemindAt
+        {
+            get => PlayerPrefs.GetInt(UnloadRemindKey, 0);
+            set { PlayerPrefs.SetInt(UnloadRemindKey, Mathf.Max(0, value)); PlayerPrefs.Save(); }
+        }
+
         public static int Coins
         {
             get => PlayerPrefs.GetInt(CoinsKey, 0);
