@@ -10,6 +10,7 @@ namespace Dockside
         public Material litBase;
         public Material unlitBase;
         public Material waterMaterial;   // Dockside/Water shader (created by Dockside > Setup Project)
+        public Material glowMaterial;    // Dockside/Glow shader: referenced so the shader ships in builds (night floodlights)
 
         [Header("Sunset sky")]
         public Color skyZenith = Hex("B86A9A");

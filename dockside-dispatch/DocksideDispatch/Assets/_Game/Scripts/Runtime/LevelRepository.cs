@@ -14,22 +14,26 @@ namespace Dockside
 
         public static string FileName(int n) => $"level_{n:00}";
 
-        public static LevelData Get(int levelNumber)
+        /// <summary>Resources folder for a mode's baked levels (Load keeps the original folder).</summary>
+        public static string FolderFor(GameMode mode) => mode == GameMode.Unload ? Folder + "/Unload" : Folder;
+
+        public static LevelData Get(int levelNumber, GameMode mode = GameMode.Load)
         {
             int n = levelNumber;
             n = LevelGenerator.Canonical(n);
-            var asset = Resources.Load<TextAsset>($"{Folder}/{FileName(n)}");
+            var asset = Resources.Load<TextAsset>($"{FolderFor(mode)}/{FileName(n)}");
             if (asset != null)
             {
                 var level = JsonUtility.FromJson<LevelData>(asset.text);
                 if (level != null && level.Validate() == null)
                 {
                     level.levelNumber = levelNumber;
+                    level.mode = mode;
                     return level;
                 }
                 Debug.LogWarning($"[Dockside] Baked level {n} is invalid; generating instead.");
             }
-            var generated = LevelCatalog.Get(n);
+            var generated = LevelCatalog.Get(n, mode);
             generated.levelNumber = levelNumber;
             return generated;
         }

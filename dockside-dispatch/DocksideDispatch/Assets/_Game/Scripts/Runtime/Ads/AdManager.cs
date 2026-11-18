@@ -199,9 +199,22 @@ namespace Dockside
         private void OnRewardedClosed(LevelPlayAdInfo adInfo)
         {
             Debug.Log("[Ads] Rewarded ad closed");
-            if (!_rewardGranted) Analytics.Event("ad_rewarded_skipped", ("placement", _rewardPlacement));
-            _onReward = null;
             LoadRewarded();   // eager preload: keep one ready for the next offer
+            // OnAdRewarded is not guaranteed to arrive before OnAdClosed (the SDK's own editor mock sends it after), so a
+            // close without a reward yet waits briefly for it before counting the video as skipped.
+            if (!_rewardGranted) StartCoroutine(AwaitLateReward(_rewardPlacement));
+            else _onReward = null;
+        }
+
+        private System.Collections.IEnumerator AwaitLateReward(string placement)
+        {
+            float until = Time.realtimeSinceStartup + 2f;
+            while (!_rewardGranted && Time.realtimeSinceStartup < until) yield return null;
+            if (!_rewardGranted && _rewardPlacement == placement)
+            {
+                Analytics.Event("ad_rewarded_skipped", ("placement", placement));
+                _onReward = null;
+            }
         }
 
         private void OnRewardedClicked(LevelPlayAdInfo adInfo) => Debug.Log("[Ads] Rewarded ad clicked");
@@ -222,6 +235,7 @@ namespace Dockside
         /// <summary>
         /// Called when a level is completed. Shows an interstitial only if the frequency cap allows and one is ready;
         /// never waits for an ad. Returns true if an ad is being shown (onClosed runs when it closes).
+        /// levelCompleted: levels the player has finished in total (Load and Unload together).
         /// </summary>
         public bool TryShowInterstitialAfterLevel(int levelCompleted, Action onClosed)
         {

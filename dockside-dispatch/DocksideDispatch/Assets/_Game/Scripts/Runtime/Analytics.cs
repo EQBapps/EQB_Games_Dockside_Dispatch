@@ -50,14 +50,15 @@ namespace Dockside
 
             switch (name)
             {
+                // Load keeps the original "Dockside" progression so existing dashboards continue; Unload has its own.
                 case "level_start":
-                    GameAnalytics.NewProgressionEvent(GAProgressionStatus.Start, "Dockside", Level(f));
+                    GameAnalytics.NewProgressionEvent(GAProgressionStatus.Start, Progression(f), Level(f));
                     break;
                 case "level_complete":
-                    GameAnalytics.NewProgressionEvent(GAProgressionStatus.Complete, "Dockside", Level(f), ToInt(f, "moves"));
+                    GameAnalytics.NewProgressionEvent(GAProgressionStatus.Complete, Progression(f), Level(f), ToInt(f, "moves"));
                     break;
                 case "level_fail":
-                    GameAnalytics.NewProgressionEvent(GAProgressionStatus.Fail, "Dockside", Level(f));
+                    GameAnalytics.NewProgressionEvent(GAProgressionStatus.Fail, Progression(f), Level(f));
                     break;
                 case "ad_rewarded_show":
                     GameAnalytics.NewAdEvent(GAAdAction.Show, GAAdType.RewardedVideo, "levelplay", Field("placement"));
@@ -91,6 +92,9 @@ namespace Dockside
         }
 
         private static string Level(Dictionary<string, object> f) => $"level_{ToInt(f, "level"):000}";
+
+        private static string Progression(Dictionary<string, object> f) =>
+            f.TryGetValue("mode", out var m) && System.Convert.ToString(m, CultureInfo.InvariantCulture) == "Unload" ? "Unload" : "Dockside";
 
         private static int ToInt(Dictionary<string, object> f, string key) =>
             f.TryGetValue(key, out var v) && int.TryParse(System.Convert.ToString(v, CultureInfo.InvariantCulture), out var n) ? n : 0;

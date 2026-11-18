@@ -15,6 +15,7 @@ MonoBehaviour:
   litBase: {fileID: 2100000, guid: 221b1f19a171c844299ade100aa70327, type: 2}
   unlitBase: {fileID: 2100000, guid: 937f494e00b922f4a93e266bd36ba3f1, type: 2}
   waterMaterial: {fileID: 2100000, guid: 173662ddad360f34695533bbdac48ca4, type: 2}
+  glowMaterial: {fileID: 2100000, guid: d25538ee02a3f0b42ab28e1ba6bb39a6, type: 2}
   skyZenith: {r: 0.72156864, g: 0.41568628, b: 0.6039216, a: 1}
   skyHigh: {r: 0.9137255, g: 0.5019608, b: 0.6039216, a: 1}
   skyMid: {r: 1, g: 0.62352943, b: 0.49411765, a: 1}

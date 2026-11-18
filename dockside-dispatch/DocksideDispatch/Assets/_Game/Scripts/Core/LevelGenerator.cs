@@ -30,7 +30,28 @@ namespace Dockside.Core
             return level <= AuthoredLevelCount ? level : LoopStart + (level - LoopStart) % (AuthoredLevelCount - LoopStart + 1);
         }
 
-        /// <summary>Difficulty curve for the prototype's 30 levels, with a small sawtooth (every 5th level is a spike).</summary>
+        /// <summary>Containers a truck carries in Unload: two short ones or one long one, like a real truck.</summary>
+        public const int TruckCapacity = 2;
+        public const int MaxColors = 5;
+
+        /// <summary>
+        /// Difficulty curve (every 5th level is a spike). Unload uses the same curve; only the vehicles change:
+        /// trucks carry 2 slots instead of a ship's 3-4, so a level has about twice as many of them.
+        /// </summary>
+        public static LevelParams ParamsFor(int level, GameMode mode)
+        {
+            var p = ParamsFor(level);
+            if (mode == GameMode.Unload)
+            {
+                p.minCapacity = TruckCapacity; p.maxCapacity = TruckCapacity;
+                // Small trucks turn over quickly, which makes the middle levels easier than Load's: one more colour
+                // there brings the casual win rate back into the same target band (the late game already lands in it).
+                if (Canonical(level) >= 6) p.colors = Math.Min(MaxColors, p.colors + 1);
+            }
+            return p;
+        }
+
+        /// <summary>Difficulty curve for Load, with a small sawtooth (every 5th level is a spike).</summary>
         public static LevelParams ParamsFor(int level)
         {
             int n = Canonical(level);
@@ -84,16 +105,20 @@ namespace Dockside.Core
         /// Generates a solvable level whose casual-player win rate falls in the target band
         /// (or the closest candidate found). Deterministic for a given level number.
         /// </summary>
-        public static LevelData Generate(int levelNumber, int maxAttempts = 250)
+        public static LevelData Generate(int levelNumber, int maxAttempts = 250) => Generate(levelNumber, GameMode.Load, maxAttempts);
+
+        /// <summary>As Generate, for either mode. Unload levels use their own seeds, so their layouts differ from Load's.</summary>
+        public static LevelData Generate(int levelNumber, GameMode mode, int maxAttempts = 250)
         {
-            var p = ParamsFor(levelNumber);
+            var p = ParamsFor(levelNumber, mode);
             var (min, max) = TargetWinRate(levelNumber);
             LevelData best = null;
             float bestDistance = float.MaxValue;
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
-                int seed = unchecked(levelNumber * 7919 + attempt * 104729);
+                int seed = unchecked(levelNumber * 7919 + attempt * 104729 + (mode == GameMode.Unload ? 15485863 : 0));
                 var level = TryBuild(levelNumber, seed, p);
+                if (level != null) level.mode = mode;
                 if (level == null || level.Validate() != null) continue;
                 if (!Solver.Solve(level, 8000).solvable) continue;
                 float rate = Solver.CasualWinRate(level, 40, seed);
@@ -103,7 +128,7 @@ namespace Dockside.Core
                 if (distance < bestDistance) { best = level; bestDistance = distance; }
             }
             if (best != null) return best;
-            throw new InvalidOperationException($"Could not generate a solvable layout for level {levelNumber} ({p}).");
+            throw new InvalidOperationException($"Could not generate a solvable {mode} layout for level {levelNumber} ({p}).");
         }
 
         public static LevelData TryBuild(int levelNumber, int seed, LevelParams p)
@@ -225,14 +250,14 @@ namespace Dockside.Core
     /// <summary>Caches generated levels so each is built once per run.</summary>
     public static class LevelCatalog
     {
-        private static readonly Dictionary<int, LevelData> Cache = new Dictionary<int, LevelData>();
+        private static readonly Dictionary<(GameMode, int), LevelData> Cache = new Dictionary<(GameMode, int), LevelData>();
 
-        public static LevelData Get(int levelNumber)
+        public static LevelData Get(int levelNumber, GameMode mode = GameMode.Load)
         {
-            if (!Cache.TryGetValue(levelNumber, out var level))
+            if (!Cache.TryGetValue((mode, levelNumber), out var level))
             {
-                level = LevelGenerator.Generate(levelNumber);
-                Cache[levelNumber] = level;
+                level = LevelGenerator.Generate(levelNumber, mode);
+                Cache[(mode, levelNumber)] = level;
             }
             return level.Clone();
         }

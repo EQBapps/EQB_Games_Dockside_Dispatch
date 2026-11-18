@@ -71,12 +71,20 @@ namespace Dockside
 
         // ------------------------------------------------------------------ level hooks
         /// <summary>Called when a level starts; shows any first-time intros once the ships have docked.</summary>
-        public void OnLevelStarted(int levelNumber, GameSession session, Func<int, Vector3?> containerPosition, Func<int, bool> shipReady)
+        public void OnLevelStarted(int levelNumber, GameMode mode, GameSession session, Func<int, Vector3?> containerPosition, Func<int, bool> shipReady)
         {
             HidePointer();
             StopAllCoroutines();
+            _mode = mode;
             StartCoroutine(Intro(levelNumber, session, containerPosition, shipReady));
         }
+
+        private GameMode _mode;
+        private bool Unload => _mode == GameMode.Unload;
+        // Unload has its own first-tap pointer and holding-bay tip (the vehicles differ), the mechanic cards are shared.
+        private string TapKeyFor => Unload ? "unload.tap" : TapKey;
+        private string BayKeyFor => Unload ? "unload.bay" : BayKey;
+        public const string UnloadIntroKey = "unload.intro";
 
         private IEnumerator Intro(int levelNumber, GameSession session, Func<int, Vector3?> containerPosition, Func<int, bool> shipReady)
         {
@@ -89,14 +97,16 @@ namespace Dockside
                 hasLock |= c.kind == ContainerKind.Locked;
                 hasHidden |= c.kind == ContainerKind.Hidden;
             }
+            if (Unload && levelNumber == 1 && !Seen(UnloadIntroKey))
+                yield return Card(UnloadIntroKey, "New mode: Unload", "A ship has come in full. Put each container on the truck of its colour; the holding bay takes the rest. Don't let it fill up!");
             if (hasLong && !Seen(LongKey))
-                yield return Card(LongKey, "New: long containers", "They fill 2 slots on a ship or in the holding bay. Plan where they go!");
+                yield return Card(LongKey, "New: long containers", "They fill 2 slots on a ship, a truck or in the holding bay. Plan where they go!");
             if (hasLock && !Seen(LockKey))
                 yield return Card(LockKey, "New: locked containers", "Send off the container carrying the gold key to unlock it. Even Crane Lift can't move it until then.");
             if (hasHidden && !Seen(HiddenKey))
                 yield return Card(HiddenKey, "New: mystery containers", "A \"?\" container shows its colour once it has a clear path to the quay.");
 
-            if (levelNumber == 1 && !Seen(TapKey))
+            if (levelNumber == 1 && !Seen(TapKeyFor))
             {
                 // Point at a container that can go straight onto a docked ship of its colour.
                 // Prefer the front row (next to the quay): the clearest example for a new player.
@@ -112,7 +122,8 @@ namespace Dockside
                     }
                 }
                 if (best >= 0)
-                    ShowPointer(() => containerPosition(best), "Tap a container to load it onto the ship of the same colour");
+                    ShowPointer(() => containerPosition(best), Unload ? "Tap a container to put it on the truck of the same colour"
+                                                                     : "Tap a container to load it onto the ship of the same colour");
             }
         }
 
@@ -131,15 +142,16 @@ namespace Dockside
         {
             if (_target == null) return;
             HidePointer();
-            MarkSeen(TapKey);
+            MarkSeen(TapKeyFor);
         }
 
         /// <summary>Called when a container lands in the holding bay.</summary>
         public void OnContainerToBay()
         {
-            if (Seen(BayKey)) return;
-            MarkSeen(BayKey);
-            _hud.Toast("No ship for that colour yet, so it waits in the holding bay. Don't let the bay fill up!", 4f);
+            if (Seen(BayKeyFor)) return;
+            MarkSeen(BayKeyFor);
+            _hud.Toast(Unload ? "No truck for that colour yet, so it waits in the holding bay. Don't let the bay fill up!"
+                              : "No ship for that colour yet, so it waits in the holding bay. Don't let the bay fill up!", 4f);
         }
 
         // ------------------------------------------------------------------ pointer

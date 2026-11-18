@@ -237,6 +237,38 @@ namespace Dockside.Tests
             }
         }
 
+        /// <summary>The shipped Unload levels (Resources/Levels/Unload): valid, solvable, all trucks of 2 slots.</summary>
+        [Test]
+        [Timeout(300000)]
+        public void BakedUnloadLevelsAreValidSolvableAndUseTrucks()
+        {
+            var dir = System.IO.Path.Combine(UnityEngine.Application.dataPath, "_Game/Resources/Levels/Unload");
+            for (int n = 1; n <= LevelGenerator.AuthoredLevelCount; n++)
+            {
+                var path = System.IO.Path.Combine(dir, $"level_{n:00}.json");
+                Assert.IsTrue(System.IO.File.Exists(path), $"Unload level {n} is not baked");
+                var level = UnityEngine.JsonUtility.FromJson<LevelData>(System.IO.File.ReadAllText(path));
+                Assert.AreEqual(GameMode.Unload, level.mode, $"Unload level {n} has the wrong mode");
+                Assert.IsNull(level.Validate(), $"Unload level {n} invalid");
+                Assert.IsTrue(level.ships.All(s => s.capacity == LevelGenerator.TruckCapacity), $"Unload level {n}: a truck is not {LevelGenerator.TruckCapacity} slots");
+                Assert.IsTrue(Solver.Solve(level).solvable, $"Unload level {n} not solvable");
+            }
+        }
+
+        [Test]
+        public void UnloadLevelsDifferFromLoadLevelsAndAreDeterministic()
+        {
+            foreach (int n in new[] { 1, 4, 9 })
+            {
+                var load = LevelGenerator.Generate(n, GameMode.Load);
+                var a = LevelGenerator.Generate(n, GameMode.Unload);
+                var b = LevelGenerator.Generate(n, GameMode.Unload);
+                Assert.AreNotEqual(load.seed, a.seed, $"Level {n}: Unload reuses the Load layout");
+                Assert.AreEqual(a.seed, b.seed, $"Unload level {n} is not deterministic");
+                Assert.AreEqual(GameMode.Unload, a.mode);
+            }
+        }
+
         [Test]
         public void DifficultyRampsUp()
         {

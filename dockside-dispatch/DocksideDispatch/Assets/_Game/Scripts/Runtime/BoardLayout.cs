@@ -10,11 +10,24 @@ namespace Dockside
     {
         public const float Cell = 1.1f;
         public static readonly Vector3 ContainerSize = new Vector3(1.0f, 0.7f, 0.95f);
-        public const float ShipScale = 0.4f;         // container scale when stowed on a ship
-        public const float ShipSlotPitch = 0.42f;    // x distance between ship slots
-        public const float QuayNearZ = 0.75f, QuayFarZ = 2.6f, BufferZ = 1.65f;
+        public const float ShipScale = 0.5f;         // container scale when stowed on a ship
+        public const float ShipSlotPitch = 0.56f;    // x distance between ship slots
+        /// <summary>Top edge of the yard (Load) or of the ship's container bay (Unload); row 0 sits just below it.</summary>
+        public const float YardTopZ = 0.75f;
+        /// <summary>
+        /// How far the quay, holding bay and truck lane sit above their Load positions. Unload moves them up a little
+        /// so the ship's deck, port rail and the fendered quay wall fit between the container bay and the quay.
+        /// Set by the game controller before a level is built.
+        /// </summary>
+        public static float QuayShift;
+        public const float UnloadQuayShift = 0.55f;
+        public static float QuayNearZ => 0.75f + QuayShift;
+        public static float QuayFarZ => 2.6f + QuayShift;
+        public static float BufferZ => 1.65f + QuayShift;
         public const float WaterNearZ = 2.6f, WaterFarZ = 7.6f, ShipZ = 4.5f;
-        public const float BerthSpacing = 2.95f;
+        /// <summary>Unload: trucks wait in the loading lane just beyond the quay.</summary>
+        public static float TruckZ => 3.55f + QuayShift;
+        public const float BerthSpacing = 3.1f;      // a 4-slot ship is 2.8 long (ShipView.HullLength), so 0.3 of water between ships
         public const float ContentHalfWidth = 4.7f;  // what must stay on screen horizontally (ships incl. bows)
 
         public readonly int Width, Height, Berths;

@@ -7,8 +7,9 @@ using UnityEngine.EventSystems;
 namespace Dockside
 {
     /// <summary>
-    /// Runs a level: builds the views, turns taps into GameSession moves, and plays the
-    /// resulting events back as animations in order.
+    /// Runs a level in either mode: builds the views, turns taps into GameSession moves, and plays the
+    /// resulting events back as animations in order. Load sends yard containers to ships; Unload sends a ship's
+    /// cargo to trucks. The rules are identical, so only the scenery and the vehicle views depend on the mode.
     /// </summary>
     public class GameController : MonoBehaviour
     {
@@ -33,7 +34,12 @@ namespace Dockside
         private Transform _levelRoot, _yardRoot, _shipsRoot, _envRoot;
         private BufferSlotsView _bufferSlots;
         private readonly Dictionary<int, ContainerView> _containers = new Dictionary<int, ContainerView>();
-        private ShipView[] _ships;
+        private VehicleView[] _ships;
+        private ModeMenuView _menu;
+        private bool _menuOpen;
+        private GameMode _mode = GameMode.Load;
+        public GameMode Mode => _mode;
+        private string VehicleNoun => _mode == GameMode.Unload ? "Trucks" : "Ships";
         private readonly List<int> _viewBuffer = new List<int>();   // holding bay as the player currently sees it
         private readonly Queue<GameEvent> _pending = new Queue<GameEvent>();
         private bool _playing;
@@ -53,7 +59,15 @@ namespace Dockside
             _tutorial = TutorialView.Create(_hud, cam, palette);
             _hud.SetCoins(SaveData.Coins);
             foreach (BoosterType t in System.Enum.GetValues(typeof(BoosterType))) _hud.SetBooster(t, SaveData.Boosters(t));
-            StartLevel(SaveData.Level);
+            _menu = ModeMenuView.Create(palette);
+            _menu.ModeChanged += m => PreviewMode(m);
+            _menu.PlayClicked += PlayFromMenu;
+            _mode = SaveData.Mode;
+            // New players go straight into Load level 1; returning players start on the mode menu.
+            // (The GDPR question lives on the HUD, so a player who still has to answer it skips the menu this time.)
+            bool returning = SaveData.Level > 1 || SaveData.LevelFor(GameMode.Unload) > 1;
+            if (returning && !Privacy.NeedsGdprAnswer) ShowModeMenu();
+            else StartLevel(SaveData.LevelFor(_mode));
             // GDPR players are asked once before any ads load (LevelPlayInitializer waits for the answer).
             if (Privacy.NeedsGdprAnswer)
                 _hud.ShowAdConsent(yes =>
@@ -67,7 +81,49 @@ namespace Dockside
         // =====================================================================
         // Level setup
         // =====================================================================
-        public void StartLevel(int levelNumber)
+        /// <summary>Switches mode (if needed) and starts a level of it.</summary>
+        public void StartLevel(GameMode mode, int levelNumber)
+        {
+            _mode = mode;
+            SaveData.Mode = mode;
+            StartLevel(levelNumber);
+        }
+
+        public void StartLevel(int levelNumber) => StartLevel(levelNumber, preview: false);
+
+        // =====================================================================
+        // Mode menu: the selected mode's next level is built behind the menu as a live backdrop; Play starts it.
+        // =====================================================================
+        public void ShowModeMenu()
+        {
+            _menuOpen = true;
+            _hud.HidePanels();
+            _hud.SetVisible(false);
+            _menu.Show(_mode);
+            PreviewMode(_mode);
+            Analytics.Event("mode_menu_open", ("mode", _mode));
+        }
+
+        private void PreviewMode(GameMode mode)
+        {
+            _mode = mode;
+            bool locked = mode == GameMode.Unload && !SaveData.UnloadUnlocked;
+            StartLevel(locked ? 1 : SaveData.LevelFor(mode), preview: true);
+        }
+
+        private void PlayFromMenu(GameMode mode)
+        {
+            _menu.Hide();
+            _menuOpen = false;
+            _hud.SetVisible(true);
+            _mode = mode;
+            SaveData.Mode = mode;
+            Analytics.Event("mode_selected", ("mode", mode), ("level", SaveData.LevelFor(mode)));
+            if (_session == null || _levelNumber != SaveData.LevelFor(mode) || _session.MovesMade > 0) StartLevel(SaveData.LevelFor(mode));
+            else BeginPlay();
+        }
+
+        private void StartLevel(int levelNumber, bool preview)
         {
             StopAllCoroutines();
             _pending.Clear();
@@ -83,22 +139,15 @@ namespace Dockside
             _boostersUsed = 0;
 
             _levelNumber = levelNumber;
-            var level = LevelRepository.Get(levelNumber);
+            BoardLayout.QuayShift = _mode == GameMode.Unload ? BoardLayout.UnloadQuayShift : 0f;
+            var level = LevelRepository.Get(levelNumber, _mode);
             _session = new GameSession(level);
             _layout = new BoardLayout(level.width, level.height, level.berths);
             _layout.FitCamera(_cam, CameraPitch, HudView.TopMargin, HudView.BottomMargin);
             _lastAspect = _cam.aspect;
 
             _levelRoot = new GameObject($"Level_{levelNumber}").transform;
-            _envRoot = EnvironmentBuilder.Build(_levelRoot, _layout, _pal, _cam, levelNumber);
-            // A new port every few levels: announce it.
-            int port = PortSkylines.IndexForLevel(levelNumber);
-            if (levelNumber == 1 || port != PortSkylines.IndexForLevel(levelNumber - 1))
-            {
-                int first = (levelNumber - 1) / PortSkylines.LevelsPerPort * PortSkylines.LevelsPerPort + 1;
-                _hud.Banner($"Next stop: {PortSkylines.Names[port]}", $"Levels {first}-{first + PortSkylines.LevelsPerPort - 1}");
-                Analytics.Event("port_arrival", ("port", PortSkylines.Names[port]), ("level", levelNumber));
-            }
+            _envRoot = EnvironmentBuilder.Build(_levelRoot, _layout, _pal, _cam, levelNumber, _mode);
 
             _bufferSlots = new GameObject("HoldingBay").AddComponent<BufferSlotsView>();
             _bufferSlots.transform.SetParent(_levelRoot, false);
@@ -122,21 +171,40 @@ namespace Dockside
 
             _shipsRoot = new GameObject("Ships").transform;
             _shipsRoot.SetParent(_levelRoot, false);
-            _ships = new ShipView[_session.BerthCount];
+            _ships = new VehicleView[_session.BerthCount];
             for (int b = 0; b < _session.BerthCount; b++)
             {
                 int ship = _session.ShipAtBerth(b);
-                if (ship >= 0) StartCoroutine(DockShip(b, ship, 0.15f * b));
+                // Unload: trucks come in along one lane, so the one going furthest (the rightmost bay) leads.
+                float delay = _mode == GameMode.Unload ? 0.3f * (_session.BerthCount - 1 - b) : 0.15f * b;
+                if (ship >= 0) StartCoroutine(DockShip(b, ship, delay));
             }
 
             _shipsDepartedShown = 0;
             _hud.SetLevel(levelNumber);
-            _hud.SetShips(0, _session.ShipsTotal);
+            _hud.SetShips(0, _session.ShipsTotal, VehicleNoun);
             RefreshYard();
+            if (!preview) BeginPlay();
+        }
+
+        /// <summary>The player starts on the level: port banner, analytics, first-time tips, timer.</summary>
+        private void BeginPlay()
+        {
+            int levelNumber = _levelNumber;
+            // A new port every few levels (the city skyline behind both modes): announce it.
+            int port = PortSkylines.IndexForLevel(levelNumber);
+            if (levelNumber == 1 || port != PortSkylines.IndexForLevel(levelNumber - 1))
+            {
+                int first = (levelNumber - 1) / PortSkylines.LevelsPerPort * PortSkylines.LevelsPerPort + 1;
+                _hud.Banner(_mode == GameMode.Unload ? $"Unloading in {PortSkylines.Names[port]}" : $"Next stop: {PortSkylines.Names[port]}",
+                    $"Levels {first}-{first + PortSkylines.LevelsPerPort - 1}");
+                Analytics.Event("port_arrival", ("port", PortSkylines.Names[port]), ("level", levelNumber), ("mode", _mode));
+            }
             _levelStartTime = Time.time;
+            var level = _session.Level;
             Analytics.Event("level_start", ("level", levelNumber), ("seed", level.seed), ("containers", level.containers.Count),
-                ("ships", level.ships.Count));
-            _tutorial.OnLevelStarted(levelNumber, _session,
+                ("ships", level.ships.Count), ("mode", _mode));
+            _tutorial.OnLevelStarted(levelNumber, _mode, _session,
                 i => _containers.TryGetValue(i, out var v) && v && _session.InYard(i) ? v.transform.position + Vector3.up * 0.45f : (Vector3?)null,
                 b => _ships != null && _ships[b] && Vector3.Distance(_ships[b].transform.position, BerthPosition(b)) < 0.3f);
         }
@@ -144,14 +212,18 @@ namespace Dockside
         private IEnumerator DockShip(int berth, int shipIndex, float delay)
         {
             var spec = _session.Level.ships[shipIndex];
-            var ship = ShipView.Create(_shipsRoot, shipIndex, spec.color, spec.capacity, _pal);
+            VehicleView ship = _mode == GameMode.Unload
+                ? TruckView.Create(_shipsRoot, shipIndex, spec.color, spec.capacity, _pal, SkyTheme.Current(_pal))
+                : ShipView.Create(_shipsRoot, shipIndex, spec.color, spec.capacity, _pal);
             _ships[berth] = ship;
             ship.transform.position = BerthPosition(berth) + new Vector3(-12f, 0, 0);
             if (delay > 0) yield return new WaitForSeconds(delay);
-            yield return ship.SailIn(BerthPosition(berth), 0.5f);
+            yield return ship.Arrive(BerthPosition(berth), _mode == GameMode.Unload ? 0.75f : 0.5f);
         }
 
-        private Vector3 BerthPosition(int berth) => new Vector3(_layout.BerthX(berth), -0.05f, BoardLayout.ShipZ);
+        private Vector3 BerthPosition(int berth) => _mode == GameMode.Unload
+            ? new Vector3(_layout.BerthX(berth), 0f, BoardLayout.TruckZ)
+            : new Vector3(_layout.BerthX(berth), -0.05f, BoardLayout.ShipZ);
 
         private void RefreshYard()
         {
@@ -173,7 +245,7 @@ namespace Dockside
                 _lastAspect = _cam.aspect;
                 _layout.FitCamera(_cam, CameraPitch, HudView.TopMargin, HudView.BottomMargin);
             }
-            if (_session == null || _session.IsOver || _hud.IsModalOpen) return;
+            if (_session == null || _session.IsOver || _hud.IsModalOpen || _menuOpen) return;
             if (!TryGetPress(out Vector2 screenPos)) return;
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
             var ray = _cam.ScreenPointToRay(screenPos);
@@ -282,13 +354,13 @@ namespace Dockside
                     {
                         _craneLifted = -1;
                         yield return _craneRig.Carry(view.transform, () => ship.SlotWorldPosition(e.slot, len),
-                            BoardLayout.ContainerScale(len) * BoardLayout.ShipScale, ship.transform.rotation);
+                            BoardLayout.ContainerScale(len) * ship.StowScale, ship.transform.rotation);
                     }
                     else
                     {
                         var target = ship.SlotWorldPosition(e.slot, len);
                         Sfx.Play("lift", 0.6f);
-                        yield return Tween.Arc(view.transform, target, 1.6f, 0.3f, BoardLayout.ContainerScale(len) * BoardLayout.ShipScale, ship.transform.rotation);
+                        yield return Tween.Arc(view.transform, target, 1.6f, 0.3f, BoardLayout.ContainerScale(len) * ship.StowScale, ship.transform.rotation);
                         Sfx.Play("land");
                     }
                     view.transform.SetParent(ship.transform, true);
@@ -331,19 +403,22 @@ namespace Dockside
                     var ship = _ships[e.berth];
                     _ships[e.berth] = null;
                     _shipsDepartedShown++;
-                    _hud.SetShips(_shipsDepartedShown, _session.ShipsTotal);
+                    _hud.SetShips(_shipsDepartedShown, _session.ShipsTotal, VehicleNoun);
                     if (ship)
                     {
                         StartCoroutine(Tween.Pop(ship.transform, 0.12f, 0.25f));
                         yield return new WaitForSeconds(0.12f);
-                        Sfx.Play("horn", 0.8f);
+                        Sfx.Play(ship.DepartSound, 0.8f);
                         StartCoroutine(SailAway(ship));
                         yield return new WaitForSeconds(0.25f);
                     }
                     break;
                 }
                 case GameEventType.ShipArrived:
-                    yield return DockShip(e.berth, e.shipIndex, 0f);
+                    // A truck may have to queue in the lane before it can turn in; containers for it already wait until
+                    // it reaches its bay, so play on rather than hold every other animation up.
+                    if (_mode == GameMode.Unload) { StartCoroutine(DockShip(e.berth, e.shipIndex, 0f)); yield return new WaitForSeconds(0.1f); }
+                    else yield return DockShip(e.berth, e.shipIndex, 0f);
                     break;
                 case GameEventType.ContainerRevealed:
                     if (_containers.TryGetValue(e.containerId, out var rv))
@@ -376,9 +451,9 @@ namespace Dockside
             }
         }
 
-        private IEnumerator SailAway(ShipView ship)
+        private IEnumerator SailAway(VehicleView ship)
         {
-            yield return ship.SailOut(0.9f);
+            yield return ship.Depart(0.9f);
             if (ship) Destroy(ship.gameObject);
         }
 
@@ -412,18 +487,23 @@ namespace Dockside
             _ended = true;
             SaveData.Coins += WinCoins;
             _hud.SetCoins(SaveData.Coins);
-            Analytics.Coins(true, WinCoins, "level_reward", $"level_{_levelNumber:000}");
-            SaveData.Level = _levelNumber + 1;
+            Analytics.Coins(true, WinCoins, "level_reward", $"{(_mode == GameMode.Unload ? "unload_" : "")}level_{_levelNumber:000}");
+            bool wasLocked = !SaveData.UnloadUnlocked;
+            SaveData.SetLevelFor(_mode, _levelNumber + 1);
+            if (wasLocked && SaveData.UnloadUnlocked) Analytics.Event("mode_unlocked", ("mode", GameMode.Unload), ("level", _levelNumber));
             Analytics.Event("level_complete", ("level", _levelNumber), ("moves", _session.MovesMade),
-                ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("boosters", _boostersUsed), ("second_chance", _usedSecondChance));
+                ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("boosters", _boostersUsed), ("second_chance", _usedSecondChance),
+                ("mode", _mode));
             Sfx.Play("win");
-            int completed = _levelNumber;
+            // Interstitials start once the player has finished enough levels in total (both modes count), so a player
+            // deep into Load sees the same ad pacing when they switch to Unload level 1.
+            int finished = (SaveData.Level - 1) + (SaveData.LevelFor(GameMode.Unload) - 1);
             _hud.ShowWin(_levelNumber, WinCoins, () =>
             {
                 // A capped, opportunistic interstitial between levels; the game never waits for an ad.
                 var ads = AdManager.Instance;
-                if (ads == null || !ads.TryShowInterstitialAfterLevel(completed, () => StartLevel(SaveData.Level)))
-                    StartLevel(SaveData.Level);
+                if (ads == null || !ads.TryShowInterstitialAfterLevel(finished, () => StartLevel(SaveData.LevelFor(_mode))))
+                    StartLevel(SaveData.LevelFor(_mode));
             });
         }
 
@@ -434,7 +514,7 @@ namespace Dockside
                 ? "No container can move right now."
                 : "The holding bay is full.";
             Analytics.Event("level_fail", ("level", _levelNumber), ("reason", _session.LoseReason), ("moves", _session.MovesMade),
-                ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("second_chance", _usedSecondChance));
+                ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("second_chance", _usedSecondChance), ("mode", _mode));
             Sfx.Play("lose");
             _hud.ShowLose(reason, !_usedSecondChance, SecondChance,
                 coinsLabel: $"Use {ContinuePrice} coins: +2 bay slots", canAffordCoins: SaveData.Coins >= ContinuePrice,
@@ -487,7 +567,7 @@ namespace Dockside
         // =====================================================================
         private void OnBooster(BoosterType type)
         {
-            if (_session == null || _session.IsOver || _hud.IsModalOpen) return;
+            if (_session == null || _session.IsOver || _hud.IsModalOpen || _menuOpen) return;
             int count = SaveData.Boosters(type);
             if (count <= 0)
             {
@@ -551,7 +631,7 @@ namespace Dockside
             SaveData.SetBoosters(type, n);
             _hud.SetBooster(type, n);
             _boostersUsed++;
-            Analytics.Event("booster_used", ("booster", type), ("level", _levelNumber));
+            Analytics.Event("booster_used", ("booster", type), ("level", _levelNumber), ("mode", _mode));
         }
 
         private static string Label(BoosterType t) => t switch
@@ -563,11 +643,12 @@ namespace Dockside
 
         private void OnPause()
         {
-            if (_hud.IsModalOpen) return;
+            if (_hud.IsModalOpen || _menuOpen) return;
             _hud.ShowPause(
                 resume: () => _hud.HidePanels(),
+                modes: () => { _hud.HidePanels(); ShowModeMenu(); },
                 restart: () => StartLevel(_levelNumber),
-                skip: DevTools ? () => { SaveData.Level = _levelNumber + 1; StartLevel(SaveData.Level); } : (System.Action)null,
+                skip: DevTools ? () => { SaveData.SetLevelFor(_mode, _levelNumber + 1); StartLevel(_levelNumber + 1); } : (System.Action)null,
                 soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",
                 toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
                 privacy: ShowPrivacy,
@@ -582,7 +663,7 @@ namespace Dockside
         {
             _hud.ShowLevelPicker(_levelNumber, LevelGenerator.AuthoredLevelCount,
                 n => $"Level {n}\n{PortSkylines.NameForLevel(n)}",
-                go: n => { SaveData.Level = n; _hud.HidePanels(); StartLevel(n); },
+                go: n => { SaveData.SetLevelFor(_mode, n); _hud.HidePanels(); StartLevel(n); },
                 back: () => { _hud.HidePanels(); OnPause(); });
         }
 
@@ -590,7 +671,7 @@ namespace Dockside
         private void RebuildEnvironment()
         {
             if (_envRoot) Destroy(_envRoot.gameObject);
-            _envRoot = EnvironmentBuilder.Build(_levelRoot, _layout, _pal, _cam, _levelNumber);
+            _envRoot = EnvironmentBuilder.Build(_levelRoot, _layout, _pal, _cam, _levelNumber, _mode);
         }
 
         private void ShowPrivacy()

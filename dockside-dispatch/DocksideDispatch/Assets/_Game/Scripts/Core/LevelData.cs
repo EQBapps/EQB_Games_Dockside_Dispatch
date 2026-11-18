@@ -3,6 +3,12 @@ using System.Collections.Generic;
 
 namespace Dockside.Core
 {
+    /// <summary>
+    /// Load: containers in the yard go onto ships at the berths. Unload: containers in a ship's hold go onto trucks at the
+    /// loading bays. The rules are the same; only the vehicles (ShipSpec = ship or truck) and the scenery differ.
+    /// </summary>
+    public enum GameMode { Load = 0, Unload = 1 }
+
     public enum ContainerKind
     {
         Normal = 0,
@@ -28,6 +34,7 @@ namespace Dockside.Core
         public ContainerSpec Clone() => (ContainerSpec)MemberwiseClone();
     }
 
+    /// <summary>A vehicle in the queue: a ship (Load) or a truck (Unload).</summary>
     [Serializable]
     public class ShipSpec
     {
@@ -41,6 +48,7 @@ namespace Dockside.Core
     public class LevelData
     {
         public int levelNumber;
+        public GameMode mode;   // Load for levels baked before Unload existed (JSON default)
         public int seed;
         public int width = 6;
         public int height = 5;

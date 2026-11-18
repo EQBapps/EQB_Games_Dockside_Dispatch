@@ -50,6 +50,7 @@ namespace Dockside.EditorTools
             palette.litBase = lit;
             palette.unlitBase = unlit;
             palette.waterMaterial = CreateMaterial(Root + "/Materials/M_Water.mat", "Dockside/Water");
+            palette.glowMaterial = CreateMaterial(Root + "/Materials/M_Glow.mat", "Dockside/Glow");
             EditorUtility.SetDirty(palette);
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
@@ -219,16 +220,24 @@ namespace Dockside.EditorTools
 
         /// <summary>Generates the prototype levels and saves them as JSON under Resources/Levels (Dockside > Bake Levels).</summary>
         [MenuItem("Dockside/Bake Levels")]
-        public static void BakeLevels()
+        public static void BakeLevels() => BakeLevels(GameMode.Load);
+
+        /// <summary>Generates the 100 Unload levels into Resources/Levels/Unload (Dockside > Bake Unload Levels).</summary>
+        [MenuItem("Dockside/Bake Unload Levels")]
+        public static void BakeUnloadLevels() => BakeLevels(GameMode.Unload);
+
+        private static void BakeLevels(GameMode mode)
         {
-            var dir = Path.Combine(Root, "Resources", LevelRepository.Folder);
+            var dir = Path.Combine(Root, "Resources", LevelRepository.FolderFor(mode));
             Directory.CreateDirectory(dir);
             for (int n = 1; n <= LevelGenerator.AuthoredLevelCount; n++)
             {
-                var level = LevelGenerator.Generate(n);
+                var level = LevelGenerator.Generate(n, mode);
                 File.WriteAllText(Path.Combine(dir, LevelRepository.FileName(n) + ".json"), JsonUtility.ToJson(level, true));
-                Debug.Log($"[Dockside] Baked level {n}: {level.width}x{level.height}, {level.containers.Count} containers, " +
-                          $"{level.ships.Count} ships, casual win rate {level.casualWinRate:0.00}");
+                var (min, max) = LevelGenerator.TargetWinRate(n);
+                Debug.Log($"[Dockside] Baked {mode} level {n}: {level.width}x{level.height}, {level.containers.Count} containers, " +
+                          $"{level.ships.Count} {(mode == GameMode.Unload ? "trucks" : "ships")}, casual win rate {level.casualWinRate:0.00} " +
+                          $"(target {min:0.00}-{max:0.00})");
             }
             AssetDatabase.Refresh();
         }

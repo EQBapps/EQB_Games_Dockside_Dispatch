@@ -124,8 +124,11 @@ namespace Dockside
 
         // ------------------------------------------------------------------
         public bool IsModalOpen => _overlay != null && _overlay.gameObject.activeSelf;
+        /// <summary>Hides the whole HUD (top bar, boosters, toasts) while the mode menu is open.</summary>
+        public void SetVisible(bool visible) => GetComponent<Canvas>().enabled = visible;
         public void SetLevel(int n) => _level.text = $"LEVEL {n}";
-        public void SetShips(int departed, int total) => _ships.text = $"Ships {departed} of {total}";
+        /// <summary>Vehicles sent off so far ("Ships 3 of 10", "Trucks 5 of 18").</summary>
+        public void SetShips(int departed, int total, string noun = "Ships") => _ships.text = $"{noun} {departed} of {total}";
         public void SetCoins(int coins) => _coins.text = coins.ToString("N0");
 
         public void SetBooster(BoosterType type, int count, bool armed = false)
@@ -218,13 +221,14 @@ namespace Dockside
             if (rt) Destroy(rt.gameObject);
         }
 
-        public void ShowPause(Action resume, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy,
+        public void ShowPause(Action resume, Action modes, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy,
                               string skyLabel, Action cycleSky, string port, Action goToLevel = null)
         {
             // Sky preview and Skip level are test tools: the caller passes null for them in release builds.
             var buttons = new System.Collections.Generic.List<(string label, Color color, Action action)>
             {
                 ("Resume", _pal.uiGood, resume),
+                ("Game modes", Palette.Hex("EE8A2B"), modes),
                 (soundLabel, Palette.Hex("2F7FE0"), toggleSound),
             };
             if (cycleSky != null) buttons.Add((skyLabel, Palette.Hex("2F7FE0"), cycleSky));
