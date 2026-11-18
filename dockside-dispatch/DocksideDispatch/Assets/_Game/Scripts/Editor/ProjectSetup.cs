@@ -80,8 +80,8 @@ namespace Dockside.EditorTools
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-            PlayerSettings.bundleVersion = "0.5.0";
-            PlayerSettings.Android.bundleVersionCode = 6;   // must increase for each build installed over the last
+            PlayerSettings.bundleVersion = "0.5.1";
+            PlayerSettings.Android.bundleVersionCode = 7;   // must increase for each build installed over the last
 
             ConfigureSplash();
             ConfigureMobileRendering();

@@ -51,7 +51,7 @@ After a loss there is a one-time **second chance**. Rewarded ads are placeholder
 
 ### Levels
 
-There are 100 levels, baked to `Assets/_Game/Resources/Levels/level_NN.json`. After level 100, levels 81–100 repeat. The port skyline in the background changes every 5 levels (Hong Kong, Singapore, Dubai, Mumbai, Amsterdam, Los Angeles, Sydney, Rotterdam), and the sky follows the player's local time of day.
+There are 100 levels, baked to `Assets/_Game/Resources/Levels/level_NN.json`. After level 100, levels 81–100 repeat. The port skyline in the background changes every 5 levels, so the 100 levels visit 20 different ports: Hong Kong, Singapore, Dubai, Mumbai, Amsterdam, Los Angeles, Sydney, Rotterdam, Shanghai, New York, London, Hamburg, Tokyo, San Francisco, Rio de Janeiro, Cape Town, Istanbul, Venice, Barcelona and Seattle. The sky follows the player's local time of day.
 
 - **Generation:** levels are generated deterministically from a seed (`LevelGenerator`).
 - **Solvability:** an exhaustive solver checks that every level can be won (`Solver.Solve`).

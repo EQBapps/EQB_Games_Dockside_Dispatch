@@ -44,7 +44,7 @@ The screenshots show:
 > • Shuffle mixes the colours in the yard.
 >
 > **SAIL AROUND THE WORLD**
-> Visit Hong Kong, Singapore, Dubai, Mumbai, Amsterdam, Los Angeles, Sydney and Rotterdam. The harbour follows your clock, from sunrise to starry nights.
+> Sail to 20 famous ports, a new one every 5 levels: Hong Kong, Singapore, Dubai, Mumbai, Amsterdam, Los Angeles, Sydney, Rotterdam, Shanghai, New York, London, Hamburg, Tokyo, San Francisco, Rio de Janeiro, Cape Town, Istanbul, Venice, Barcelona and Seattle. The harbour follows your clock, from sunrise to starry nights.
 >
 > • 100 hand-tuned levels that get trickier as you go
 > • Colour-blind friendly: every colour has its own symbol
