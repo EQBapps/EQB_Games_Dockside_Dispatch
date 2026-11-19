@@ -1,6 +1,6 @@
 # Dockside Dispatch: Play Games achievements
 
-To enter in Play Console under **Grow users → Play Games Services → Setup and management → Achievements**. Enter them in this order; the console shows them to players in the same order. Icons (512 × 512 PNG) will be added to this folder.
+Import `DocksideDispatch_achievements.zip` in Play Console under **Grow users → Play Games Services → Setup and management → Achievements → Import achievements**. It holds the metadata, the 17 icons (512 × 512, also in `icons/`) and the icon mapping. Regenerate it with `python Tools/make_achievements.py`.
 
 Point values follow Play's rules: multiples of 5, at most 200 per achievement, at most 1,000 for the whole game. This set totals **345**, which leaves room for future achievements.
 
@@ -13,7 +13,7 @@ Point values follow Play's rules: multiples of 5, at most 200 per achievement, a
 | 5 | Change of Shift | Win your first Unload level. | Standard | | 10 | Revealed |
 | 6 | Yard Boss | Complete Unload level 50. | Standard | | 25 | Revealed |
 | 7 | Unload Legend | Complete all 100 Unload levels. | Standard | | 50 | Revealed |
-| 8 | Around the World | Reach the 20th port, Seattle, in either mode. | Standard | | 30 | Revealed |
+| 8 | Around the World | Reach the 20th port (Seattle) in either mode. | Standard | | 30 | Revealed |
 | 9 | Clean Sheet | Win level 20 or later without using a booster. | Standard | | 15 | Revealed |
 | 10 | Comeback Captain | Win a level after taking a second chance. | Standard | | 10 | Revealed |
 | 11 | Night Shift | Win a level at night. | Standard | | 10 | Hidden |
