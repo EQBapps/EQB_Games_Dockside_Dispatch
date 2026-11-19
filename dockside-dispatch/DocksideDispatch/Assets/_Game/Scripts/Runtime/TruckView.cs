@@ -226,6 +226,9 @@ namespace Dockside
         // Trucks never drive through the trucks parked in the other bays: they come in along the free lane behind the
         // bays and turn in, and pull out into that lane to leave (LaneTraffic keeps the gaps).
         private const float LaneSpeed = 7.5f, TurnLength = 2.0f;
+        // Safety net: a truck that has waited this long for traffic gives up on the lane and drives straight into place,
+        // so the puzzle (which waits for its trucks) can never freeze, whatever happens in the traffic animation.
+        private const float GiveUpSeconds = 6f;
         private LaneTraffic.Car _car;
 
         /// <summary>Heading (degrees about +y) applied under the lean towards the camera.</summary>
@@ -255,14 +258,26 @@ namespace Dockside
                 transform.position = new Vector3(lane.EntryX, pos.y, zLane);
                 SetHeading(0f);
                 _lastX = transform.position.x;
+                float waited = 0f;
+                // Queue (off screen, not yet a lane vehicle) for the lane entry.
+                while (!lane.TryEnter(this, pos.x, half))
+                {
+                    if ((waited += Time.deltaTime) > GiveUpSeconds) { lane.LeaveQueue(this); yield return DriveStraightIn(pos); yield break; }
+                    yield return null;
+                }
                 _car = lane.Add(transform, half);
-                // Wait (off screen) for room at the lane entry.
-                while (!lane.ZoneClear(lane.EntryX - half - 0.3f, lane.EntryX + half + 0.8f, _car)) yield return null;
                 // Drive along the lane to the turn-in point; if the bay is still being vacated, wait well short of it
                 // (outside the leaving truck's pull-out zone).
                 float turnX = pos.x - TurnLength, waitX = turnX - Length - 1.0f;
+                waited = 0f;
                 while (true)
                 {
+                    if ((waited += Time.deltaTime) > GiveUpSeconds + 4f)
+                    {
+                        lane.Remove(_car); _car = null;
+                        yield return DriveStraightIn(pos);
+                        yield break;
+                    }
                     bool free = lane.BayFree(pos.x, this);
                     float x = transform.position.x;
                     if (free && x >= turnX - 0.01f) break;
@@ -303,8 +318,9 @@ namespace Dockside
             float half = Length * 0.5f, zLane = lane.LaneZ;
             Vector3 bay = transform.position;
             float x1 = bay.x + TurnLength;
-            // Pull out only when the lane beside the bay (and a little behind it) is clear.
-            while (!lane.ZoneClear(bay.x - half - 2.5f, x1 + half + 0.8f)) yield return null;
+            // Pull out only when the lane beside the bay (and a little behind it) is clear (or after waiting too long).
+            for (float waited = 0f; !lane.ZoneClear(bay.x - half - 2.5f, x1 + half + 0.8f) && waited < GiveUpSeconds; waited += Time.deltaTime)
+                yield return null;
             _car = lane.Add(transform, half);
             // Pull out: S-curve into the lane, picking up speed; the body squats as it moves off.
             const float PullOut = 0.7f;
@@ -331,9 +347,25 @@ namespace Dockside
             _car = null;
         }
 
+        /// <summary>Fallback when traffic has held a truck up too long: glide straight into the bay (claiming it) and settle.</summary>
+        private IEnumerator DriveStraightIn(Vector3 pos)
+        {
+            Debug.LogWarning($"[Dockside] Truck {ShipIndex} waited too long for traffic; driving straight in.");
+            var lane = LaneTraffic.Instance;
+            if (lane != null) lane.ClaimBay(pos.x, this);
+            SetHeading(0f);
+            Vector3 from = new Vector3(Mathf.Min(transform.position.x, pos.x - 6f), pos.y, pos.z);
+            transform.position = from;
+            yield return Tween.Move(transform, pos, 0.6f, Tween.EaseOutCubic);
+            transform.position = pos;
+        }
+
         private void OnDestroy()
         {
-            if (_car != null && LaneTraffic.Instance != null) LaneTraffic.Instance.Remove(_car);
+            var lane = LaneTraffic.Instance;
+            if (lane == null) return;
+            if (_car != null) lane.Remove(_car);
+            lane.LeaveQueue(this);
         }
     }
 }
