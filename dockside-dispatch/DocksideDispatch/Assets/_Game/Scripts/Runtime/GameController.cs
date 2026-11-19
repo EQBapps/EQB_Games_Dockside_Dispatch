@@ -77,6 +77,7 @@ namespace Dockside
                     _hud.HidePanels();
                 });
             Notifications.Init();
+            GameServices.Init();
         }
 
         // =====================================================================
@@ -362,6 +363,7 @@ namespace Dockside
                     {
                         _craneLifted = index;   // played back by the crane rig, not the usual arc
                         ConsumeBooster(BoosterType.CraneLift);
+                        GameServices.AddStat("cranelift");
                         _craneArmed = false;
                         _hud.SetCraneHint(false);
                         _hud.SetBooster(BoosterType.CraneLift, SaveData.Boosters(BoosterType.CraneLift));
@@ -393,8 +395,27 @@ namespace Dockside
         // =====================================================================
         private void Enqueue(List<GameEvent> events)
         {
-            foreach (var e in events) _pending.Enqueue(e);
+            foreach (var e in events)
+            {
+                _pending.Enqueue(e);
+                CountForAchievements(e);
+            }
             if (!_playing) StartCoroutine(PlayEvents());
+        }
+
+        /// <summary>Feeds the incremental Play Games achievements (counted on the device, synced when signed in).</summary>
+        private void CountForAchievements(GameEvent e)
+        {
+            switch (e.type)
+            {
+                case GameEventType.ContainerToShip:
+                case GameEventType.BufferToShip:
+                    if (_containers.TryGetValue(e.containerId, out var v) && v.Length > 1) GameServices.AddStat("long");
+                    break;
+                case GameEventType.ShipDeparted: GameServices.AddStat(_mode == GameMode.Unload ? "trucks" : "ships"); break;
+                case GameEventType.ContainerRevealed: GameServices.AddStat("revealed"); break;
+                case GameEventType.ContainerUnlocked: GameServices.AddStat("unlocked"); break;
+            }
         }
 
         private IEnumerator PlayEvents()
@@ -568,6 +589,7 @@ namespace Dockside
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("boosters", _boostersUsed), ("second_chance", _usedSecondChance),
                 ("mode", _mode));
             Sfx.Play("win");
+            GameServices.OnLevelWon(_mode, _levelNumber, _boostersUsed, _usedSecondChance, SkyTheme.CurrentPhase == DayPhase.Night);
             // Interstitials start once the player has finished enough levels in total (both modes count), so a player
             // deep into Load sees the same ad pacing when they switch to Unload level 1.
             int finished = (SaveData.Level - 1) + (SaveData.LevelFor(GameMode.Unload) - 1);
@@ -749,6 +771,11 @@ namespace Dockside
             _hud.ShowPause(
                 resume: () => _hud.HidePanels(),
                 modes: () => { _hud.HidePanels(); ShowModeMenu(); },
+                achievements: () =>
+                {
+                    _hud.HidePanels();
+                    GameServices.ShowAchievements(failed => _hud.Banner("Couldn't sign in to Play Games", "Check your connection and try again"));
+                },
                 restart: () => StartLevel(_levelNumber),
                 skip: DevTools ? () => { SaveData.SetLevelFor(_mode, _levelNumber + 1); StartLevel(_levelNumber + 1); } : (System.Action)null,
                 soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",

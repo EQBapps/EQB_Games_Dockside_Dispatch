@@ -7,7 +7,8 @@
         "UnityEngine.UI",
         "Unity.LevelPlay",
         "GameAnalyticsSDK",
-        "Unity.Notifications.Android"
+        "Unity.Notifications.Android",
+        "Google.Play.Games"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

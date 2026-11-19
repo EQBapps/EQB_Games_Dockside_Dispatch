@@ -236,7 +236,7 @@ namespace Dockside
             if (rt) Destroy(rt.gameObject);
         }
 
-        public void ShowPause(Action resume, Action modes, Action restart, Action skip, string soundLabel, Action toggleSound,
+        public void ShowPause(Action resume, Action modes, Action achievements, Action restart, Action skip, string soundLabel, Action toggleSound,
                               string remindersLabel, Action toggleReminders, Action privacy,
                               string skyLabel, Action cycleSky, string port, Action goToLevel = null, Action testReminder = null)
         {
@@ -245,6 +245,7 @@ namespace Dockside
             {
                 ("Resume", _pal.uiGood, resume),
                 ("Game modes", Palette.Hex("EE8A2B"), modes),
+                ("Achievements", Palette.Hex("1B8C8A"), achievements),
                 (soundLabel, Palette.Hex("2F7FE0"), toggleSound),
                 (remindersLabel, Palette.Hex("2F7FE0"), toggleReminders),
             };
@@ -304,7 +305,7 @@ namespace Dockside
 
         private int _cardButtons;
         // Long cards (the pause menu in test builds) pack their buttons tighter so the card still fits a 16:9 screen.
-        private int ButtonStep => _cardButtons > 9 ? 135 : _cardButtons > 8 ? 150 : 170;
+        private int ButtonStep => _cardButtons > 10 ? 125 : _cardButtons > 9 ? 135 : _cardButtons > 8 ? 150 : 170;
 
         private RectTransform Card(string title, string body, int buttons)
         {

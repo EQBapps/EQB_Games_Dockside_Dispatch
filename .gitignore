@@ -56,3 +56,6 @@ desktop.ini
 *.jks
 *-upload.properties
 *.pem
+
+# ---- Python ----
+__pycache__/
