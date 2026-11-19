@@ -43,6 +43,11 @@ namespace Dockside
         private readonly List<int> _viewBuffer = new List<int>();   // holding bay as the player currently sees it
         private readonly Queue<GameEvent> _pending = new Queue<GameEvent>();
         private bool _playing;
+        // Unload: a container sent to a truck that is still driving in waits over its bay (on the crane's spreader) while
+        // playback carries on, and that truck's departure waits for it. Counts per truck, and everything still running.
+        private readonly Dictionary<VehicleView, int> _deliveries = new Dictionary<VehicleView, int>();
+        private int _backgroundPlays;
+        private const float HoverHeight = 1.15f;
         private int _levelNumber, _shipsDepartedShown;
         private bool _craneArmed, _usedSecondChance, _ended;
         private float _levelStartTime, _lastAspect;
@@ -193,6 +198,9 @@ namespace Dockside
             StopAllCoroutines();
             _pending.Clear();
             _playing = false;
+            _deliveries.Clear();
+            _hovering.Clear();
+            _backgroundPlays = 0;
             _hud.HidePanels();
             if (_levelRoot) Destroy(_levelRoot.gameObject);
             _containers.Clear();
@@ -440,9 +448,24 @@ namespace Dockside
                     var ship = _ships[e.berth];
                     if (e.type == GameEventType.BufferToShip) _viewBuffer.Remove(e.containerId);
                     view.Detach();
-                    // Ship may still be sailing in: wait until it is near its berth.
-                    while (ship && Vector3.Distance(ship.transform.position, BerthPosition(e.berth)) > 0.3f) yield return null;
                     int len = view.Length;
+                    if (_mode == GameMode.Unload && ship && !Docked(ship, e.berth) && e.containerId != _craneLifted)
+                    {
+                        // The truck is still on its way: lift the container over its bay and play on; it drops in when the
+                        // truck has parked (DeliverWhenDocked), so later taps never queue behind lane traffic.
+                        view.SetRevealed(true);
+                        Sfx.Play("lift", 0.6f);
+                        yield return Tween.Arc(view.transform, HoverPoint(ship, e.berth, e.slot, len), 0.6f, 0.26f,
+                            BoardLayout.ContainerScale(len) * ship.StowScale, RestRotation);
+                        _deliveries[ship] = (_deliveries.TryGetValue(ship, out var n) ? n : 0) + 1;
+                        _hovering[ship] = e.berth;
+                        _backgroundPlays++;
+                        StartCoroutine(DeliverWhenDocked(view, ship, e.berth, e.slot, len));
+                        if (e.type == GameEventType.BufferToShip) yield return RelayoutBuffer(0.12f);
+                        break;
+                    }
+                    // Ship may still be sailing in: wait until it is near its berth.
+                    while (ship && !Docked(ship, e.berth)) yield return null;
                     view.SetRevealed(true);
                     if (e.containerId == _craneLifted)
                     {
@@ -496,16 +519,14 @@ namespace Dockside
                 {
                     var ship = _ships[e.berth];
                     _ships[e.berth] = null;
-                    _shipsDepartedShown++;
-                    _hud.SetShips(_shipsDepartedShown, _session.ShipsTotal, VehicleNoun);
-                    if (ship)
+                    if (ship && _deliveries.TryGetValue(ship, out var waiting) && waiting > 0)
                     {
-                        StartCoroutine(Tween.Pop(ship.transform, 0.12f, 0.25f));
-                        yield return new WaitForSeconds(0.12f);
-                        Sfx.Play(ship.DepartSound, 0.8f);
-                        StartCoroutine(SailAway(ship));
-                        yield return new WaitForSeconds(0.25f);
+                        // Its last containers are still waiting for it to park: it leaves once they are on board.
+                        _backgroundPlays++;
+                        StartCoroutine(DepartWhenLoaded(ship));
+                        break;
                     }
+                    yield return SendOff(ship);
                     break;
                 }
                 case GameEventType.ShipArrived:
@@ -535,14 +556,82 @@ namespace Dockside
                     RefreshYard();
                     break;
                 case GameEventType.Won:
+                    while (_backgroundPlays > 0) yield return null;   // the last trucks are loaded and away
                     yield return new WaitForSeconds(0.6f);
                     OnWon();
                     break;
                 case GameEventType.Lost:
+                    while (_backgroundPlays > 0) yield return null;
                     yield return new WaitForSeconds(0.4f);
                     OnLost();
                     break;
             }
+        }
+
+        private bool Docked(VehicleView ship, int berth) => Vector3.Distance(ship.transform.position, BerthPosition(berth)) <= 0.3f;
+
+        /// <summary>A truck's resting pose (it leans towards the camera); its slots are placed relative to it.</summary>
+        private static Quaternion RestRotation => Quaternion.Euler(TruckView.Tilt, 0, 0);
+
+        /// <summary>
+        /// Where a container waits for its truck: over its slot on the parked truck, raised (higher still when an earlier
+        /// truck for the same bay has containers waiting there too).
+        /// </summary>
+        private Vector3 HoverPoint(VehicleView ship, int berth, int slot, int len)
+        {
+            int earlier = 0;
+            foreach (var kv in _hovering)
+                if (kv.Key && kv.Key != ship && kv.Value == berth && _deliveries.TryGetValue(kv.Key, out var n) && n > 0) earlier++;
+            return BerthPosition(berth) + RestRotation * ship.SlotLocalPosition(slot, len) + Vector3.up * (HoverHeight + 0.8f * earlier);
+        }
+
+        private readonly Dictionary<VehicleView, int> _hovering = new Dictionary<VehicleView, int>();   // truck -> its bay, while containers wait for it
+
+        private IEnumerator DeliverWhenDocked(ContainerView view, VehicleView ship, int berth, int slot, int len)
+        {
+            float phase = Random.value * 6f;
+            Vector3 hover = view ? view.transform.position : Vector3.zero;
+            while (ship && view && !Docked(ship, berth))
+            {
+                view.transform.position = hover + Vector3.up * (Mathf.Sin((Time.time + phase) * 3f) * 0.04f);
+                yield return null;
+            }
+            if (ship && view)
+            {
+                yield return Tween.Arc(view.transform, ship.SlotWorldPosition(slot, len), 0.12f, 0.22f,
+                    BoardLayout.ContainerScale(len) * ship.StowScale, ship.transform.rotation);
+                Sfx.Play("land");
+                view.transform.SetParent(ship.transform, true);
+                view.transform.localPosition = ship.SlotLocalPosition(slot, len);
+                view.transform.localRotation = Quaternion.identity;
+                ship.SetLoaded(ship.Loaded + len);
+                StartCoroutine(Tween.Pop(view.transform, 0.25f, 0.18f));
+            }
+            if (ship && _deliveries.TryGetValue(ship, out var n)) _deliveries[ship] = n - 1;
+            _backgroundPlays--;
+        }
+
+        private IEnumerator DepartWhenLoaded(VehicleView ship)
+        {
+            while (ship && _deliveries.TryGetValue(ship, out var n) && n > 0) yield return null;
+            yield return new WaitForSeconds(0.15f);   // let the last container settle on the deck
+            yield return SendOff(ship);
+            _backgroundPlays--;
+        }
+
+        /// <summary>A full vehicle leaves: the counter goes up, a little pop and the horn, then it drives or sails away.</summary>
+        private IEnumerator SendOff(VehicleView ship)
+        {
+            _shipsDepartedShown++;
+            _hud.SetShips(_shipsDepartedShown, _session.ShipsTotal, VehicleNoun);
+            if (!ship) yield break;
+            _deliveries.Remove(ship);
+            _hovering.Remove(ship);
+            StartCoroutine(Tween.Pop(ship.transform, 0.12f, 0.25f));
+            yield return new WaitForSeconds(0.12f);
+            Sfx.Play(ship.DepartSound, 0.8f);
+            StartCoroutine(SailAway(ship));
+            yield return new WaitForSeconds(0.25f);
         }
 
         private IEnumerator SailAway(VehicleView ship)
@@ -590,9 +679,8 @@ namespace Dockside
                 ("mode", _mode));
             Sfx.Play("win");
             GameServices.OnLevelWon(_mode, _levelNumber, _boostersUsed, _usedSecondChance, SkyTheme.CurrentPhase == DayPhase.Night);
-            // Interstitials start once the player has finished enough levels in total (both modes count), so a player
-            // deep into Load sees the same ad pacing when they switch to Unload level 1.
-            int finished = (SaveData.Level - 1) + (SaveData.LevelFor(GameMode.Unload) - 1);
+            // Interstitials start only after level AdManager.InterstitialFromLevel of this mode: the first levels of each
+            // mode (where players learn it, and decide whether to stay) are always ad-free.
             bool unlockedNow = wasLocked && SaveData.UnloadUnlocked;
             bool offerReminders = ReminderOfferDue;
             System.Action next = () =>
@@ -603,7 +691,7 @@ namespace Dockside
                 if (offerReminders) { StartLevel(SaveData.LevelFor(_mode)); return; }
                 // A capped, opportunistic interstitial between levels; the game never waits for an ad.
                 var ads = AdManager.Instance;
-                if (ads == null || !ads.TryShowInterstitialAfterLevel(finished, () => StartLevel(SaveData.LevelFor(_mode))))
+                if (ads == null || !ads.TryShowInterstitialAfterLevel(_levelNumber, () => StartLevel(SaveData.LevelFor(_mode))))
                     StartLevel(SaveData.LevelFor(_mode));
             };
             _hud.ShowWin(_levelNumber, WinCoins, () =>

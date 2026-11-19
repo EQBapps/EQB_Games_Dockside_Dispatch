@@ -4,11 +4,11 @@ using UnityEngine;
 namespace Dockside
 {
     /// <summary>
-    /// The free lane behind the loading bays (Unload mode), where every truck drives left to right: puzzle trucks coming
-    /// in to turn into their bay or pulling out full, and passing trucks with muted boxes. Vehicles in the lane keep a
-    /// safe gap to the one ahead (they brake and queue rather than drive through each other); a truck only pulls out of
-    /// its bay when the lane beside it is clear; an incoming truck waits short of its bay until the previous truck has
-    /// left it; passing trucks only enter when the entry is clear.
+    /// The free lane behind the loading bays (Unload mode), where the puzzle trucks drive left to right: coming in to turn
+    /// into their bay, or pulling out full. It carries nothing else (the trucks passing by drive through the terminal yard
+    /// behind the stacks, YardTraffic), so a truck is never held up by scenery. Vehicles in the lane keep a safe gap to the
+    /// one ahead; a truck only pulls out of its bay when the lane beside it is clear; each bay serves its trucks in the
+    /// order they were sent, and the next one waits short of the bay until the previous truck has left it.
     /// Puzzle trucks queue for the entry off screen and only become lane vehicles once they enter, so two waiting trucks
     /// can never block each other (they used to, when a slow frame let two of them reach the entry together).
     /// </summary>
@@ -21,33 +21,25 @@ namespace Dockside
             public Transform t;
             public float half;     // half length along the lane
             public float v;        // current speed (+x)
-            public bool ambient;
             public float X => t ? t.position.x : float.MaxValue;
         }
 
         public const float MinGap = 0.45f, Accel = 12f, Brake = 14f, HardBrake = 40f;
-        private const float AmbientSpeed = 2.6f;
-        private static readonly Color[] Cabs = { Palette.Hex("ECE7DD"), Palette.Hex("AEB4BC"), Palette.Hex("4E5562"), Palette.Hex("8C4F4A"), Palette.Hex("3F5F7A") };
-        private static readonly Color[] Cargo = { Palette.Hex("B0605A"), Palette.Hex("5F7F96"), Palette.Hex("C2A266"), Palette.Hex("6F8E74"), Palette.Hex("9A948E"), Palette.Hex("D6CFC2") };
 
         private readonly List<Car> _cars = new List<Car>();
-        private readonly Dictionary<int, Object> _bays = new Dictionary<int, Object>();
+        private readonly Dictionary<int, List<Object>> _bays = new Dictionary<int, List<Object>>();
         private readonly List<(Object who, float priority)> _entryQueue = new List<(Object, float)>();
-        private float _halfW, _next;
-        private Palette _pal;
-        private SkyTheme _theme;
+        private float _halfW;
 
-        public float EntryX => -_halfW - 3f;
-        public float ExitX => _halfW + 3f;
+        // Just off screen (halfW is 1.5 past the screen edge; a truck is about 2.5 long), so trucks are in view at once.
+        public float EntryX => -_halfW - 0.5f;
+        public float ExitX => _halfW + 0.5f;
         public float LaneZ => EnvironmentBuilder.PassingLaneZ;
 
-        public void Init(float halfW, Palette pal, SkyTheme theme)
+        public void Init(float halfW)
         {
             Instance = this;
             _halfW = halfW;
-            _pal = pal;
-            _theme = theme;
-            _next = Time.time + Random.Range(1.5f, 4f);
         }
 
         private void OnDestroy()
@@ -56,9 +48,9 @@ namespace Dockside
         }
 
         // ------------------------------------------------------------------ registry
-        public Car Add(Transform t, float half, bool ambient = false)
+        public Car Add(Transform t, float half)
         {
-            var c = new Car { t = t, half = half, ambient = ambient };
+            var c = new Car { t = t, half = half };
             _cars.Add(c);
             return c;
         }
@@ -122,37 +114,22 @@ namespace Dockside
         public void LeaveQueue(Object who) => _entryQueue.RemoveAll(q => q.who == who || q.who == null);
 
         // ------------------------------------------------------------------ loading bays
+        // Each bay keeps the trucks booked for it in the order they were sent; only the first may turn in. A truck books
+        // its bay as soon as it is sent, so the next truck for that bay waits short of it instead of following the
+        // previous one in.
         private static int BayKey(float x) => Mathf.RoundToInt(x * 10f);
-        public bool BayFree(float x, Object who) => !_bays.TryGetValue(BayKey(x), out var o) || o == null || o == who;
-        public void ClaimBay(float x, Object who) => _bays[BayKey(x)] = who;
-        public void ReleaseBay(float x, Object who) { if (_bays.TryGetValue(BayKey(x), out var o) && o == who) _bays.Remove(BayKey(x)); }
 
-        // ------------------------------------------------------------------ passing trucks
-        private void Update()
+        private List<Object> Bookings(float x)
         {
-            int ambient = 0;
-            foreach (var c in _cars) if (c.ambient) ambient++;
-            float half = TruckView.Length * 0.5f;
-            _entryQueue.RemoveAll(q => q.who == null);
-            // Passing trucks never cut in while a puzzle truck is queued for the entry.
-            if (Time.time >= _next && ambient < 2 && _entryQueue.Count == 0 && ZoneClear(EntryX - half - 0.3f, EntryX + half + 1.2f))
-            {
-                var col = Cargo[Random.Range(0, Cargo.Length)];
-                var t = TruckView.CreateAmbient(transform, Cabs[Random.Range(0, Cabs.Length)], Color.Lerp(col, _theme.haze, 0.12f),
-                    Random.value < 0.5f ? 2 : 1, _pal, _theme);
-                t.transform.position = new Vector3(EntryX, 0, LaneZ);
-                var car = Add(t.transform, half, true);
-                car.v = AmbientSpeed;
-                _next = Time.time + Random.Range(5f, 10f);
-            }
-            for (int i = _cars.Count - 1; i >= 0; i--)
-            {
-                var c = _cars[i];
-                if (!c.t) { _cars.RemoveAt(i); continue; }
-                if (!c.ambient) continue;   // puzzle trucks drive themselves (TruckView)
-                Step(c, AmbientSpeed);
-                if (c.X > ExitX) { Destroy(c.t.gameObject); _cars.RemoveAt(i); }
-            }
+            if (!_bays.TryGetValue(BayKey(x), out var list)) _bays[BayKey(x)] = list = new List<Object>();
+            list.RemoveAll(o => o == null);
+            return list;
         }
+
+        public void BookBay(float x, Object who) { var l = Bookings(x); if (!l.Contains(who)) l.Add(who); }
+        public bool BayFree(float x, Object who) { var l = Bookings(x); return l.Count == 0 || l[0] == who; }
+        public void ReleaseBay(float x, Object who) => Bookings(x).Remove(who);
+
+        private void Update() => _cars.RemoveAll(c => !c.t);
     }
 }

@@ -9,7 +9,7 @@ namespace Dockside
     /// colour's symbol on the roof, pulling a flatbed container chassis with two dashed slots (two short containers or
     /// one long one). The load counter sits on a cream plate (dark symbol and text) on the trailer side, between the
     /// wheels and the deck, so it reads on every truck colour (white text straight on a yellow truck would not). It drives in from the left, brakes, and pulls away when full.
-    /// The ambient version (no plate, symbol or slots, neutral paint, a muted container) drives past on the far lane.
+    /// The ambient version (no plate, symbol or slots, neutral paint, a muted container) drives through the terminal yard.
     /// </summary>
     public class TruckView : VehicleView
     {
@@ -218,14 +218,14 @@ namespace Dockside
             float x = transform.position.x, dx = x - _lastX;
             _lastX = x;
             if (Mathf.Abs(dx) < 1e-5f) return;
-            float deg = -dx / (WheelR * ModelScale) * Mathf.Rad2Deg;
+            float deg = -dx / (WheelR * ModelScale * transform.lossyScale.x) * Mathf.Rad2Deg;
             foreach (var w in _wheels) w.localRotation *= Quaternion.Euler(0, 0, deg);
         }
 
         // ------------------------------------------------------------------ driving
         // Trucks never drive through the trucks parked in the other bays: they come in along the free lane behind the
         // bays and turn in, and pull out into that lane to leave (LaneTraffic keeps the gaps).
-        private const float LaneSpeed = 7.5f, TurnLength = 2.0f;
+        private const float LaneSpeed = 9f, TurnLength = 2.0f;
         // Safety net: a truck that has waited this long for traffic gives up on the lane and drives straight into place,
         // so the puzzle (which waits for its trucks) can never freeze, whatever happens in the traffic animation.
         private const float GiveUpSeconds = 6f;
@@ -258,6 +258,7 @@ namespace Dockside
                 transform.position = new Vector3(lane.EntryX, pos.y, zLane);
                 SetHeading(0f);
                 _lastX = transform.position.x;
+                lane.BookBay(pos.x, this);   // in the order sent: a later truck for this bay waits for this one to leave
                 float waited = 0f;
                 // Queue (off screen, not yet a lane vehicle) for the lane entry.
                 while (!lane.TryEnter(this, pos.x, half))
@@ -266,6 +267,7 @@ namespace Dockside
                     yield return null;
                 }
                 _car = lane.Add(transform, half);
+                _car.v = LaneSpeed;   // already driving when it comes into view
                 // Drive along the lane to the turn-in point; if the bay is still being vacated, wait well short of it
                 // (outside the leaving truck's pull-out zone).
                 float turnX = pos.x - TurnLength, waitX = turnX - Length - 1.0f;
@@ -287,7 +289,6 @@ namespace Dockside
                     lane.Step(_car, desired, stopX);
                     yield return null;
                 }
-                lane.ClaimBay(pos.x, this);
                 // Turn in: S-curve from the lane into the bay, slowing to a stop.
                 float v0 = Mathf.Max(2.5f, _car.v), dur = Mathf.Clamp(TurnLength * 1.6f / v0, 0.45f, 0.8f);
                 for (float t = 0; t < dur; t += Time.deltaTime)
@@ -352,7 +353,7 @@ namespace Dockside
         {
             Debug.LogWarning($"[Dockside] Truck {ShipIndex} waited too long for traffic; driving straight in.");
             var lane = LaneTraffic.Instance;
-            if (lane != null) lane.ClaimBay(pos.x, this);
+            if (lane != null) lane.BookBay(pos.x, this);
             SetHeading(0f);
             Vector3 from = new Vector3(Mathf.Min(transform.position.x, pos.x - 6f), pos.y, pos.z);
             transform.position = from;

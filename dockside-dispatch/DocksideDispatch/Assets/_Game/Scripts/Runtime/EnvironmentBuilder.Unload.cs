@@ -6,8 +6,9 @@ namespace Dockside
     /// <summary>
     /// Unload-mode scenery, seen from the port side of a container ship moored alongside the quay. The ship's open
     /// container bay is the board (where Load's yard is, so the camera, taps and animations are shared). Above it: the
-    /// fendered quay wall, the quay with the holding bay, the truck lane where trucks wait to be loaded, a far lane where
-    /// other trucks pass, the terminal's container stacks with an RTG crane and floodlight masts, and the port city of
+    /// fendered quay wall, the quay with the holding bay, the truck lane where trucks wait to be loaded, the free lane the
+    /// puzzle trucks drive in and out on, the terminal's container stacks and floodlight masts, a yard road behind the
+    /// stacks where other trucks pass (scenery only: they never share a lane with the puzzle), and the port city of
     /// the day on the horizon (it changes every 5 levels, as in Load). Ship-to-shore cranes with raised booms frame the
     /// scene at both edges, clear of the play area.
     /// </summary>
@@ -40,7 +41,7 @@ namespace Dockside
             float w = halfW * 2f + 4f;
             float roadNear = BoardLayout.QuayFarZ;
 
-            // ---- Truck lanes: loading lane (dashed bays) and the far lane where other trucks pass ----
+            // ---- Truck lanes: loading lane (dashed bays) and the free lane the puzzle trucks drive in and out on ----
             Shapes.Box("Road", root, new Vector3(0, -0.04f, (roadNear + RoadFarZ) * 0.5f), new Vector3(w, 0.08f, RoadFarZ - roadNear), Asphalt, false, false);
             Shapes.Box("PassingLane", root, new Vector3(0, -0.0015f, (LaneDividerZ + RoadFarZ) * 0.5f), new Vector3(w, 0.003f, RoadFarZ - LaneDividerZ - 0.05f), AsphaltWorn, false, false);
             for (float x = -halfW - 1f; x < halfW + 1f; x += 0.9f)
@@ -53,13 +54,14 @@ namespace Dockside
                 bay.transform.localRotation = Quaternion.Euler(90, 0, 0);
             }
 
-            // ---- Terminal yard: ground and two rows of container stacks, hazed so they sit behind the play area ----
+            // ---- Terminal yard: ground, a row of container stacks and the yard road behind it, hazed so they sit behind
+            //      the play area ----
             float yardNear = RoadFarZ + 0.05f;
             Shapes.Box("TerminalGround", root, new Vector3(0, -0.05f, (yardNear + groundFarZ) * 0.5f), new Vector3(w, 0.1f, groundFarZ - yardNear), YardGround, false, false);
             Shapes.Box("TerminalKerb", root, new Vector3(0, 0.02f, yardNear + 0.03f), new Vector3(w, 0.06f, 0.08f), ConcreteTones[3], false, false);
-            // Low stacks (one or two tiers in front, one behind) so the port city on the horizon stays the backdrop.
+            // Low stacks (one or two tiers) so the port city on the horizon stays the backdrop.
             const float BoxScale = 0.66f;
-            var rows = new[] { (z: yardNear + 0.6f, haze: 0.25f, maxTier: 2), (z: Mathf.Min(groundFarZ - 0.35f, yardNear + 1.45f), haze: 0.42f, maxTier: 1) };
+            var rows = new[] { (z: yardNear + 0.6f, haze: 0.25f, maxTier: 2) };
             foreach (var row in rows)
             {
                 for (float x = -halfW - 1.2f; x < halfW + 1.2f;)
@@ -78,6 +80,15 @@ namespace Dockside
                     x += size.x + 0.05f;
                 }
             }
+            // Yard road behind the stacks: trucks pass along it at the stacks' scale, hidden by the taller stacks and seen
+            // through the aisles and over the single tiers.
+            float yardRoadZ = Mathf.Min(groundFarZ - YardTraffic.Scale * 0.45f, yardNear + 1.6f);
+            Shapes.Box("YardRoad", root, new Vector3(0, 0.0015f, yardRoadZ), new Vector3(w, 0.003f, YardTraffic.Scale * 0.85f),
+                Color.Lerp(AsphaltWorn, theme.haze, 0.35f), false, false);
+            var yardTraffic = new GameObject("YardTraffic").AddComponent<YardTraffic>();
+            yardTraffic.transform.SetParent(root, false);
+            yardTraffic.Init(halfW, yardRoadZ, pal, theme);
+
             // High-mast floodlights.
             foreach (float mx in new[] { -halfW * 0.45f, halfW * 0.5f })
             {
@@ -103,10 +114,10 @@ namespace Dockside
             foreach (float side in new[] { -1f, 1f })
                 BuildStsCrane(root, pal, theme, cam, new Vector3(side * cx, 0.1f, 0));
 
-            // ---- The free lane: passing trucks, and puzzle trucks coming in and leaving (LaneTraffic) ----
+            // ---- The free lane: puzzle trucks coming in and leaving (LaneTraffic) ----
             var traffic = new GameObject("LaneTraffic").AddComponent<LaneTraffic>();
             traffic.transform.SetParent(root, false);
-            traffic.Init(halfW, pal, theme);
+            traffic.Init(halfW);
         }
 
         /// <summary>

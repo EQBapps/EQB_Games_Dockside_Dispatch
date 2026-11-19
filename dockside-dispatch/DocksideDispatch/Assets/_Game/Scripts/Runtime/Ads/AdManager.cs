@@ -10,7 +10,8 @@ namespace Dockside
     ///  - Rewarded: player-chosen videos for the second chance and for refilling an empty booster.
     ///    Preloaded eagerly so one is normally ready when the player asks.
     ///  - Interstitial: shown opportunistically after a completed level, never blocking play,
-    ///    and frequency-capped (not before level <see cref="InterstitialFromLevel"/>, at most one every
+    ///    and frequency-capped (none until level <see cref="InterstitialFromLevel"/> of the mode being played is
+    ///    complete, so new players and players trying Unload for the first time get ad-free levels; at most one every
     ///    <see cref="InterstitialCooldownSeconds"/> seconds and every <see cref="InterstitialEveryLevels"/> levels).
     /// Ad objects are created only after LevelPlay has initialized. Impression-level revenue (ILRD, SDK 9.5.0+)
     /// is collected per ad instance on a background thread and forwarded to Analytics on the main thread.
@@ -235,7 +236,7 @@ namespace Dockside
         /// <summary>
         /// Called when a level is completed. Shows an interstitial only if the frequency cap allows and one is ready;
         /// never waits for an ad. Returns true if an ad is being shown (onClosed runs when it closes).
-        /// levelCompleted: levels the player has finished in total (Load and Unload together).
+        /// levelCompleted: the level just completed, in the mode being played (each mode starts ad-free).
         /// </summary>
         public bool TryShowInterstitialAfterLevel(int levelCompleted, Action onClosed)
         {
