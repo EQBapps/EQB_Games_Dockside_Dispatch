@@ -100,6 +100,48 @@ namespace Dockside.EditorTools
         /// Boot splash: the EQB Games logo, then the Dockside Dispatch logo, on the dusk-plum background
         /// (Unity logo off, allowed from Unity 6). Also sets the app icon.
         /// </summary>
+        private const string NotificationSmallIconPath = "Assets/_Game/Branding/Notification_Small.png";
+        private const string NotificationLargeIconPath = "Assets/_Game/Branding/Notification_Large.png";
+
+        /// <summary>
+        /// Mobile Notifications settings for Android: inexact scheduling (no exact-alarm permission, which Play restricts),
+        /// reminders restored after a phone restart, and the status-bar / large icons (Tools/make_notification_icons.py).
+        /// </summary>
+        [MenuItem("Dockside/Configure Notifications")]
+        public static void ConfigureNotifications()
+        {
+            Unity.Notifications.NotificationSettings.AndroidSettings.ExactSchedulingOption = 0;
+            Unity.Notifications.NotificationSettings.AndroidSettings.RescheduleOnDeviceRestart = true;
+            Unity.Notifications.NotificationSettings.iOSSettings.RequestAuthorizationOnAppLaunch = false;   // we ask in context, not at launch
+            Unity.Notifications.NotificationSettings.AndroidSettings.ClearDrawableResources();
+            foreach (var (path, id, type) in new[]
+                     {
+                         (NotificationSmallIconPath, Notifications.SmallIcon, Unity.Notifications.NotificationIconType.Small),
+                         (NotificationLargeIconPath, Notifications.LargeIcon, Unity.Notifications.NotificationIconType.Large),
+                     })
+            {
+                if (AssetImporter.GetAtPath(path) is TextureImporter ti)
+                {
+                    bool dirty = !ti.isReadable || ti.mipmapEnabled || ti.textureCompression != TextureImporterCompression.Uncompressed ||
+                                 ti.textureType != TextureImporterType.Default || !ti.alphaIsTransparency;
+                    if (dirty)
+                    {
+                        ti.textureType = TextureImporterType.Default;
+                        ti.isReadable = true;
+                        ti.mipmapEnabled = false;
+                        ti.alphaIsTransparency = true;
+                        ti.textureCompression = TextureImporterCompression.Uncompressed;
+                        ti.SaveAndReimport();
+                    }
+                }
+                var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (tex == null) { Debug.LogWarning($"[Dockside] Notification icon not found at {path}."); continue; }
+                Unity.Notifications.NotificationSettings.AndroidSettings.AddDrawableResource(id, tex, type);
+            }
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Dockside] Notifications: inexact scheduling, reschedule on restart, icons " + Notifications.SmallIcon + "/" + Notifications.LargeIcon + ".");
+        }
+
         [MenuItem("Dockside/Configure Splash and Icon")]
         public static void ConfigureSplash()
         {

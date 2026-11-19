@@ -6,7 +6,8 @@
         "Unity.InputSystem",
         "UnityEngine.UI",
         "Unity.LevelPlay",
-        "GameAnalyticsSDK"
+        "GameAnalyticsSDK",
+        "Unity.Notifications.Android"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -3,6 +3,7 @@
     "rootNamespace": "Dockside.Tests",
     "references": [
         "Dockside.Core",
+        "Dockside.Runtime",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

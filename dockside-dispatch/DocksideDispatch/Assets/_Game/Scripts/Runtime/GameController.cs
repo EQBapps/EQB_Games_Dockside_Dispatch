@@ -76,6 +76,70 @@ namespace Dockside
                     Analytics.Event("privacy_consent", ("gdpr", yes));
                     _hud.HidePanels();
                 });
+            Notifications.Init();
+        }
+
+        // =====================================================================
+        // Reminders (local notifications): scheduled when the app goes to the background, cleared when it comes back
+        // =====================================================================
+        private const int ReminderOfferLevel = 3;   // first offer after this Load win; second (last) after the first Unload win
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) Notifications.OnAppBackgrounded(SaveData.Level, SaveData.UnloadUnlocked && !SaveData.UnloadPlayed);
+            else Notifications.OnAppResumed();
+        }
+
+        private void OnApplicationQuit() => Notifications.OnAppBackgrounded(SaveData.Level, SaveData.UnloadUnlocked && !SaveData.UnloadPlayed);
+
+        private bool ReminderOfferDue =>
+            Notifications.ShouldOffer &&
+            ((_mode == GameMode.Load && _levelNumber == ReminderOfferLevel && Notifications.PromptsShown == 0) ||
+             (_mode == GameMode.Unload && _levelNumber == 1));
+
+        /// <summary>"Want a nudge?" card; "Yes" leads to Android's permission dialog. Either way the game carries on with <paramref name="next"/>.</summary>
+        private void ShowReminderOffer(System.Action next)
+        {
+            Notifications.PromptsShown++;
+            Analytics.Event("reminder_offer", ("count", Notifications.PromptsShown), ("mode", _mode), ("level", _levelNumber));
+            _hud.ShowReminderOffer(
+                yes: () =>
+                {
+                    _hud.HidePanels();
+                    StartCoroutine(Notifications.RequestPermission(ok =>
+                    {
+                        Notifications.Enabled = ok;
+                        Analytics.Event("reminder_choice", ("choice", ok ? "on" : "denied"));
+                        next();
+                    }));
+                },
+                notNow: () =>
+                {
+                    Analytics.Event("reminder_choice", ("choice", "not_now"));
+                    next();
+                });
+        }
+
+        /// <summary>Pause menu switch. Turning reminders on asks for the permission if needed, or points to Settings if it was refused.</summary>
+        private void ToggleReminders()
+        {
+            _hud.HidePanels();
+            if (Notifications.Active)
+            {
+                Notifications.Enabled = false;
+                Analytics.Event("reminder_toggle", ("on", false));
+                OnPause();
+                return;
+            }
+            StartCoroutine(Notifications.RequestPermission(ok =>
+            {
+                Notifications.Enabled = true;   // the player wants them; they show once the device allows it
+                Analytics.Event("reminder_toggle", ("on", true), ("permission", ok));
+                if (ok) OnPause();
+                else _hud.ShowRemindersBlocked(
+                    openSettings: () => { _hud.HidePanels(); Notifications.OpenSettings(); },
+                    back: () => { _hud.HidePanels(); OnPause(); });
+            }));
         }
 
         // =====================================================================
@@ -508,14 +572,22 @@ namespace Dockside
             // deep into Load sees the same ad pacing when they switch to Unload level 1.
             int finished = (SaveData.Level - 1) + (SaveData.LevelFor(GameMode.Unload) - 1);
             bool unlockedNow = wasLocked && SaveData.UnloadUnlocked;
-            _hud.ShowWin(_levelNumber, WinCoins, () =>
+            bool offerReminders = ReminderOfferDue;
+            System.Action next = () =>
             {
                 // The win that unlocks Unload ends with the unlock card (no ad on top of the celebration).
                 if (unlockedNow) { ShowUnloadUnlocked(); return; }
+                // No ad straight after the reminder question either.
+                if (offerReminders) { StartLevel(SaveData.LevelFor(_mode)); return; }
                 // A capped, opportunistic interstitial between levels; the game never waits for an ad.
                 var ads = AdManager.Instance;
                 if (ads == null || !ads.TryShowInterstitialAfterLevel(finished, () => StartLevel(SaveData.LevelFor(_mode))))
                     StartLevel(SaveData.LevelFor(_mode));
+            };
+            _hud.ShowWin(_levelNumber, WinCoins, () =>
+            {
+                if (offerReminders) ShowReminderOffer(next);
+                else next();
             });
         }
 
@@ -681,11 +753,22 @@ namespace Dockside
                 skip: DevTools ? () => { SaveData.SetLevelFor(_mode, _levelNumber + 1); StartLevel(_levelNumber + 1); } : (System.Action)null,
                 soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",
                 toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
+                remindersLabel: Notifications.Active ? "Reminders: On" : "Reminders: Off",
+                toggleReminders: ToggleReminders,
                 privacy: ShowPrivacy,
                 goToLevel: DevTools ? ShowLevelPicker : (System.Action)null,
                 skyLabel: SkyTheme.Override < 0 ? $"Sky: Auto ({SkyTheme.Label(SkyTheme.CurrentPhase)})" : $"Sky: {SkyTheme.Label(SkyTheme.CurrentPhase)}",
                 cycleSky: DevTools ? () => { SkyTheme.Override = SkyTheme.Override >= 4 ? -1 : SkyTheme.Override + 1; RebuildEnvironment(); _hud.HidePanels(); OnPause(); } : (System.Action)null,
-                port: PortSkylines.NameForLevel(_levelNumber));
+                port: PortSkylines.NameForLevel(_levelNumber),
+                testReminder: DevTools ? () =>
+                {
+                    _hud.HidePanels();
+                    StartCoroutine(Notifications.RequestPermission(ok =>
+                    {
+                        if (ok) Notifications.SendTest(SaveData.Level, SaveData.UnloadUnlocked && !SaveData.UnloadPlayed);
+                        _hud.Banner(ok ? "Reminder in 1 minute" : "Notifications are blocked", ok ? "Leave the game to see it" : "Check the phone's settings");
+                    }));
+                } : (System.Action)null);
         }
 
         /// <summary>Test tool: pick any level (and so any port) and play it straight away.</summary>

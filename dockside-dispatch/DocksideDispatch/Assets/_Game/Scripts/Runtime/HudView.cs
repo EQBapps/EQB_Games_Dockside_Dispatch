@@ -236,8 +236,9 @@ namespace Dockside
             if (rt) Destroy(rt.gameObject);
         }
 
-        public void ShowPause(Action resume, Action modes, Action restart, Action skip, string soundLabel, Action toggleSound, Action privacy,
-                              string skyLabel, Action cycleSky, string port, Action goToLevel = null)
+        public void ShowPause(Action resume, Action modes, Action restart, Action skip, string soundLabel, Action toggleSound,
+                              string remindersLabel, Action toggleReminders, Action privacy,
+                              string skyLabel, Action cycleSky, string port, Action goToLevel = null, Action testReminder = null)
         {
             // Sky preview and Skip level are test tools: the caller passes null for them in release builds.
             var buttons = new System.Collections.Generic.List<(string label, Color color, Action action)>
@@ -245,12 +246,14 @@ namespace Dockside
                 ("Resume", _pal.uiGood, resume),
                 ("Game modes", Palette.Hex("EE8A2B"), modes),
                 (soundLabel, Palette.Hex("2F7FE0"), toggleSound),
+                (remindersLabel, Palette.Hex("2F7FE0"), toggleReminders),
             };
             if (cycleSky != null) buttons.Add((skyLabel, Palette.Hex("2F7FE0"), cycleSky));
             buttons.Add(("Privacy", Palette.Hex("9B5DE5"), privacy));
             buttons.Add(("Restart level", _pal.uiAccent, restart));
             if (goToLevel != null) buttons.Add(("Go to level... (test)", Palette.Hex("8A8F98"), goToLevel));
             if (skip != null) buttons.Add(("Skip level (test)", Palette.Hex("8A8F98"), skip));
+            if (testReminder != null) buttons.Add(("Reminder in 1 min (test)", Palette.Hex("8A8F98"), testReminder));
             var card = Card("Paused", $"Port: {port}", buttons.Count);
             for (int i = 0; i < buttons.Count; i++) AddCardButton(card, buttons[i].label, buttons[i].color, buttons[i].action, i);
         }
@@ -274,6 +277,24 @@ namespace Dockside
             AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 2);
         }
 
+        /// <summary>Our own opt-in for reminders, shown before Android's permission dialog (never at first launch).</summary>
+        public void ShowReminderOffer(Action yes, Action notNow)
+        {
+            var card = Card("Want a nudge?",
+                "We can remind you when the ships have been waiting a while. At most one a day, and never late at night.", 2);
+            AddCardButton(card, "Yes, remind me", _pal.uiGood, yes, 0);
+            AddCardButton(card, "Not now", Palette.Hex("8A8F98"), notNow, 1);
+        }
+
+        /// <summary>Reminders were switched on but Android won't show them: point the player to the app's notification settings.</summary>
+        public void ShowRemindersBlocked(Action openSettings, Action back)
+        {
+            var card = Card("Notifications are off",
+                "Notifications for Dockside Dispatch are turned off in your phone's settings. Turn them on there to get reminders.", 2);
+            AddCardButton(card, "Open settings", _pal.uiGood, openSettings, 0);
+            AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 1);
+        }
+
         /// <summary>One-off explainer card (tutorial), closed with a single button.</summary>
         public void ShowTip(string title, string body, Action close)
         {
@@ -282,6 +303,8 @@ namespace Dockside
         }
 
         private int _cardButtons;
+        // Long cards (the pause menu in test builds) pack their buttons tighter so the card still fits a 16:9 screen.
+        private int ButtonStep => _cardButtons > 9 ? 135 : _cardButtons > 8 ? 150 : 170;
 
         private RectTransform Card(string title, string body, int buttons)
         {
@@ -291,7 +314,7 @@ namespace Dockside
             var rt = (RectTransform)card.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             _cardButtons = buttons;
-            rt.sizeDelta = new Vector2(860, 420 + buttons * 170);
+            rt.sizeDelta = new Vector2(860, 420 + buttons * ButtonStep);
             var t = UiFactory.Rect("Title", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -60), new Vector2(-80, 110));
             UiFactory.Label("TitleText", t, title, 76, _pal.uiText);
             var b = UiFactory.Rect("Body", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -190), new Vector2(-100, 180));
@@ -331,8 +354,8 @@ namespace Dockside
             var rt = (RectTransform)b.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0);
             rt.pivot = new Vector2(0.5f, 0);
-            rt.sizeDelta = new Vector2(680, 140);
-            rt.anchoredPosition = new Vector2(0, 60 + (_cardButtons - 1 - index) * 170); // first button on top
+            rt.sizeDelta = new Vector2(680, ButtonStep - 30);
+            rt.anchoredPosition = new Vector2(0, 60 + (_cardButtons - 1 - index) * ButtonStep); // first button on top
             UiFactory.Label("Text", b.transform, label, 46, Color.white);
         }
     }

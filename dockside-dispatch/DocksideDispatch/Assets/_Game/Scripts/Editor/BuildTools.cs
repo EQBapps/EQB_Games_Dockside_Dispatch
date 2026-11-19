@@ -81,6 +81,7 @@ namespace Dockside.EditorTools
         private static bool Build(bool adTestSuite, bool exitWhenDone = true, bool testTools = false, bool store = false)
         {
             ProjectSetup.ConfigureSplash();
+            ProjectSetup.ConfigureNotifications();
             ProjectSetup.ConfigureMobileRendering();
 
             if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
