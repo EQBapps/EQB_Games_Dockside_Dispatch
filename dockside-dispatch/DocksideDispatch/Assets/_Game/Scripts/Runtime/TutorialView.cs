@@ -7,15 +7,17 @@ using UnityEngine.UI;
 namespace Dockside
 {
     /// <summary>
-    /// First-time user experience. Each tip is shown once per player (PlayerPrefs "dd.tut.*"):
-    ///  - level 1: a pulsing tap marker on a container that can go straight onto its ship;
+    /// First-time user experience. Each tip is shown once per player (PlayerPrefs "dd.tut.*"), on a card whose mini
+    /// screen plays the mechanic with the game's own pieces (DemoStage):
+    ///  - level 1 of each mode: how to play, then a pulsing tap marker on a container that can go straight onto its vehicle;
     ///  - the first time a container has to wait in the holding bay: what the bay is for;
-    ///  - the first level with long, locked or hidden containers: a "New!" card for that mechanic.
+    ///  - the first level with long, locked or hidden containers: a "New" card for that mechanic;
+    ///  - the first tap on each booster: what it does (then it goes ahead).
     /// </summary>
     public class TutorialView : MonoBehaviour
     {
         private const string Prefix = "dd.tut.";
-        public const string TapKey = "tap", BayKey = "bay", LongKey = "long", LockKey = "lock", HiddenKey = "hidden";
+        public const string TapKey = "tap", BayKey = "bay", LongKey = "long", LockKey = "lock", HiddenKey = "hidden", LoadIntroKey = "load.intro";
 
         private Camera _cam;
         private HudView _hud;
@@ -52,8 +54,8 @@ namespace Dockside
             var tip = UiFactory.Panel("TutorialTip", _canvas.Find("SafeArea") ?? _canvas, pal.uiCream, pal.uiShadow, 8f);
             _tip = (RectTransform)tip.transform;
             _tip.anchorMin = _tip.anchorMax = new Vector2(0.5f, 1); _tip.pivot = new Vector2(0.5f, 1);
-            _tip.anchoredPosition = new Vector2(0, -200); _tip.sizeDelta = new Vector2(900, 130);
-            _tipText = UiFactory.Label("Text", _tip, "", 40, pal.uiText);
+            _tip.anchoredPosition = new Vector2(0, -200); _tip.sizeDelta = new Vector2(820, 104);
+            _tipText = UiFactory.Label("Text", _tip, "", 42, pal.uiText);
             ((RectTransform)_tipText.transform).offsetMin = new Vector2(36, 10);
             ((RectTransform)_tipText.transform).offsetMax = new Vector2(-36, -10);
             _tip.gameObject.SetActive(false);
@@ -97,14 +99,16 @@ namespace Dockside
                 hasLock |= c.kind == ContainerKind.Locked;
                 hasHidden |= c.kind == ContainerKind.Hidden;
             }
+            if (!Unload && levelNumber == 1 && !Seen(LoadIntroKey))
+                yield return Card(LoadIntroKey, "How to play", "Tap a container to load the ship of its colour. Full ships sail away.", DemoKind.Basics);
             if (Unload && levelNumber == 1 && !Seen(UnloadIntroKey))
-                yield return Card(UnloadIntroKey, "New mode: Unload", "A ship has come in full. Put each container on the truck of its colour; the holding bay takes the rest. Don't let it fill up!");
+                yield return Card(UnloadIntroKey, "New mode: Unload", "Send each container to the truck of its colour. Full trucks drive off.", DemoKind.Basics);
             if (hasLong && !Seen(LongKey))
-                yield return Card(LongKey, "New: long containers", "They fill 2 slots on a ship, a truck or in the holding bay. Plan where they go!");
+                yield return Card(LongKey, "New: long containers", $"They take 2 slots, on a {Vehicle} or in the holding bay.", DemoKind.Long);
             if (hasLock && !Seen(LockKey))
-                yield return Card(LockKey, "New: locked containers", "Send off the container carrying the gold key to unlock it. Even Crane Lift can't move it until then.");
+                yield return Card(LockKey, "New: locked containers", "Send off the container with the gold key to unlock it.", DemoKind.Locked);
             if (hasHidden && !Seen(HiddenKey))
-                yield return Card(HiddenKey, "New: mystery containers", "A \"?\" container shows its colour once it has a clear path to the quay.");
+                yield return Card(HiddenKey, "New: mystery containers", "A \"?\" shows its colour once it has a clear path.", DemoKind.Hidden);
 
             if (levelNumber == 1 && !Seen(TapKeyFor))
             {
@@ -122,19 +126,41 @@ namespace Dockside
                     }
                 }
                 if (best >= 0)
-                    ShowPointer(() => containerPosition(best), Unload ? "Tap a container to put it on the truck of the same colour"
-                                                                     : "Tap a container to load it onto the ship of the same colour");
+                    ShowPointer(() => containerPosition(best), $"Tap to load the same-colour {Vehicle}");
             }
         }
 
-        private IEnumerator Card(string key, string title, string body)
+        private string Vehicle => Unload ? "truck" : "ship";
+
+        /// <summary>A tutorial card with its demo, shown once the screen is free; done when closed (or replaced).</summary>
+        private IEnumerator Card(string key, string title, string caption, DemoKind demo)
         {
             while (_hud.IsModalOpen) yield return null;
             bool closed = false;
-            _hud.ShowTip(title, body, () => { closed = true; _hud.HidePanels(); });
+            _hud.ShowDemo(title, caption, demo, _mode, ("Got it", _pal.uiGood, () => { closed = true; _hud.HidePanels(); }));
             MarkSeen(key);
-            while (!closed) yield return null;
+            while (!closed && _hud.IsModalOpen) yield return null;
             yield return new WaitForSeconds(0.2f);
+        }
+
+        /// <summary>
+        /// The first tap on a booster explains it (with its demo) before it acts: <paramref name="then"/> runs when the
+        /// card is closed. False when it has been explained already.
+        /// </summary>
+        public bool TryShowBoosterIntro(BoosterType type, Action then)
+        {
+            string key = "booster." + type;
+            if (Seen(key)) return false;
+            MarkSeen(key);
+            var (title, caption, demo) = type switch
+            {
+                BoosterType.ExtraBerth => ("Extra Berth", "Adds a holding-bay slot for the rest of the level.", DemoKind.ExtraBerth),
+                BoosterType.CraneLift => ("Crane Lift", "Tap Crane Lift, then a boxed-in container to lift it out.", DemoKind.CraneLift),
+                _ => ("Undo", "Takes back your last move, even the one that filled the bay.", DemoKind.Undo),
+            };
+            Analytics.Event("booster_intro", ("booster", type), ("mode", _mode));
+            _hud.ShowDemo(title, caption, demo, _mode, ("Got it", _pal.uiGood, () => { _hud.HidePanels(); then?.Invoke(); }));
+            return true;
         }
 
         /// <summary>Called after every accepted tap.</summary>
@@ -149,9 +175,8 @@ namespace Dockside
         public void OnContainerToBay()
         {
             if (Seen(BayKeyFor)) return;
-            MarkSeen(BayKeyFor);
-            _hud.Toast(Unload ? "No truck for that colour yet, so it waits in the holding bay. Don't let the bay fill up!"
-                              : "No ship for that colour yet, so it waits in the holding bay. Don't let the bay fill up!", 4f);
+            MarkSeen(BayKeyFor);   // now, so a second container reaching the bay before the card shows doesn't queue another
+            StartCoroutine(Card(BayKeyFor, "The holding bay", $"No {Vehicle} for that colour yet? It waits here. Don't fill the bay!", DemoKind.Bay));
         }
 
         // ------------------------------------------------------------------ pointer
@@ -174,6 +199,11 @@ namespace Dockside
         private void LateUpdate()
         {
             if (_target == null) return;
+            // Cards (pause, tutorials, win/lose) cover the board: the marker and its tip wait underneath them.
+            bool covered = _hud.IsModalOpen;
+            _marker.gameObject.SetActive(!covered);
+            _tip.gameObject.SetActive(!covered);
+            if (covered) return;
             var world = _target();
             if (world == null) { HidePointer(); return; }
             Vector2 screen = _cam.WorldToScreenPoint(world.Value);

@@ -55,7 +55,7 @@ Real game-view captures at each aspect ratio (the layout adapts to the screen), 
 > **HANDY BOOSTERS**
 > • Extra Berth adds space to the holding bay.
 > • Crane Lift plucks a boxed-in container straight out of the stack.
-> • Shuffle mixes the colours.
+> • Undo takes back your last move, even the one that filled the bay.
 >
 > **SAIL AROUND THE WORLD**
 > Visit 20 famous ports, a new one every 5 levels: Hong Kong, Singapore, Dubai, Mumbai, Amsterdam, Los Angeles, Sydney, Rotterdam, Shanghai, New York, London, Hamburg, Tokyo, San Francisco, Rio de Janeiro, Cape Town, Istanbul, Venice, Barcelona and Seattle. The harbour follows your clock, from sunrise to starry nights.

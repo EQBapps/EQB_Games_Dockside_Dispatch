@@ -230,6 +230,9 @@ namespace Dockside
         // so the puzzle (which waits for its trucks) can never freeze, whatever happens in the traffic animation.
         private const float GiveUpSeconds = 6f;
         private LaneTraffic.Car _car;
+        /// <summary>A truck in a tutorial demo: it never joins the lane traffic (it drives straight in and out).</summary>
+        public bool Standalone;
+        private LaneTraffic Lane => Standalone ? null : LaneTraffic.Instance;
 
         /// <summary>Heading (degrees about +y) applied under the lean towards the camera.</summary>
         private void SetHeading(float yaw) => transform.rotation = Quaternion.Euler(Tilt, 0, 0) * Quaternion.Euler(0, yaw, 0);
@@ -245,7 +248,7 @@ namespace Dockside
 
         public override IEnumerator Arrive(Vector3 pos, float duration)
         {
-            var lane = LaneTraffic.Instance;
+            var lane = Lane;
             if (lane == null)
             {
                 transform.position = pos + new Vector3(-9f, 0, 0);
@@ -309,7 +312,7 @@ namespace Dockside
 
         public override IEnumerator Depart(float duration)
         {
-            var lane = LaneTraffic.Instance;
+            var lane = Lane;
             if (lane == null)
             {
                 Vector3 from = transform.position, to = from + new Vector3(10f, 0, 0);
@@ -348,11 +351,20 @@ namespace Dockside
             _car = null;
         }
 
+        public override void Park(Vector3 pos)
+        {
+            transform.position = pos;
+            SetHeading(0f);
+            _lastX = pos.x;
+            var lane = Lane;
+            if (lane != null) lane.BookBay(pos.x, this);   // it holds its bay until it pulls out
+        }
+
         /// <summary>Fallback when traffic has held a truck up too long: glide straight into the bay (claiming it) and settle.</summary>
         private IEnumerator DriveStraightIn(Vector3 pos)
         {
             Debug.LogWarning($"[Dockside] Truck {ShipIndex} waited too long for traffic; driving straight in.");
-            var lane = LaneTraffic.Instance;
+            var lane = Lane;
             if (lane != null) lane.BookBay(pos.x, this);
             SetHeading(0f);
             Vector3 from = new Vector3(Mathf.Min(transform.position.x, pos.x - 6f), pos.y, pos.z);
@@ -363,7 +375,7 @@ namespace Dockside
 
         private void OnDestroy()
         {
-            var lane = LaneTraffic.Instance;
+            var lane = Lane;
             if (lane == null) return;
             if (_car != null) lane.Remove(_car);
             lane.LeaveQueue(this);

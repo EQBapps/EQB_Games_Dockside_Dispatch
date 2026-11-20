@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 namespace Dockside
 {
-    public enum BoosterType { ExtraBerth, CraneLift, Shuffle }
+    public enum BoosterType { ExtraBerth, CraneLift, Undo }
 
     /// <summary>Top bar (pause, level, coins), booster bar, toasts and the win / lose / pause panels.</summary>
     public class HudView : MonoBehaviour
@@ -87,7 +87,7 @@ namespace Dockside
             layout.childControlWidth = layout.childControlHeight = false;
             AddBooster(row, BoosterType.ExtraBerth, "berth", "Extra Berth");
             AddBooster(row, BoosterType.CraneLift, "crane", "Crane Lift");
-            AddBooster(row, BoosterType.Shuffle, "shuffle", "Shuffle");
+            AddBooster(row, BoosterType.Undo, "undo", "Undo");
 
             // ---- Toast ----
             var toast = UiFactory.Panel("Toast", safe, new Color(0.18f, 0.13f, 0.12f, 0.9f));
@@ -161,6 +161,7 @@ namespace Dockside
         {
             foreach (Transform child in _overlay) Destroy(child.gameObject);
             _overlay.gameObject.SetActive(false);
+            if (DemoStage.Instance) DemoStage.Instance.Stop();
         }
 
         public void ShowWin(int level, int coinsEarned, Action next)
@@ -169,23 +170,26 @@ namespace Dockside
             AddCardButton(card, "Next level", _pal.uiGood, next, 0);
         }
 
+        /// <summary>Lost: undo the last move (when the player has an Undo), a second chance (once), or retry.</summary>
         public void ShowLose(string reason, bool canContinue, Action secondChance, string coinsLabel, bool canAffordCoins,
-                             Action continueWithCoins, Action retry)
+                             Action continueWithCoins, Action retry, string undoLabel = null, Action undo = null)
         {
-            var card = Card("Out of room!", reason, canContinue ? 3 : 1);
+            var card = Card("Out of room!", reason, (canContinue ? 3 : 1) + (undo != null ? 1 : 0));
             int i = 0;
+            if (undo != null) AddCardButton(card, undoLabel, Palette.Hex("2F7FE0"), undo, i++, "undo");
             if (canContinue)
             {
-                AddCardButton(card, "Watch a video: +2 bay slots", _pal.uiGood, secondChance, i++);
-                AddCardButton(card, coinsLabel, canAffordCoins ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), continueWithCoins, i++);
+                AddCardButton(card, "+2 bay slots", _pal.uiGood, secondChance, i++, "video");
+                AddCardButton(card, coinsLabel, canAffordCoins ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), continueWithCoins, i++, "coin");
             }
-            AddCardButton(card, "Retry level", _pal.uiAccent, retry, i);
+            AddCardButton(card, "Retry level", _pal.uiAccent, retry, i, "restart");
         }
 
         /// <summary>After the win that unlocks Unload: a "new mode" card with the choice to try it now or keep loading.</summary>
         public void ShowUnlock(Action tryIt, Action keepLoading)
         {
-            var card = Card("New mode unlocked!", "UNLOAD: a ship has come in full.\nSend each container to the truck of its colour.", 2);
+            var card = ShowDemo("New mode unlocked!", "UNLOAD: send each container to the truck of its colour.", DemoKind.Basics, Core.GameMode.Unload,
+                ("Try Unload", Palette.Hex("EE8A2B"), tryIt), ("Keep loading", Palette.Hex("2F7FE0"), keepLoading));
             // A "NEW" tag on the card's corner, in the Unload colour.
             var tag = UiFactory.Panel("NewTag", card, Palette.Hex("EE8A2B"), Palette.Hex("2E2422"), 6f);
             var trt = (RectTransform)tag.transform;
@@ -193,16 +197,14 @@ namespace Dockside
             trt.anchoredPosition = new Vector2(-70, -14); trt.sizeDelta = new Vector2(150, 70);
             trt.localRotation = Quaternion.Euler(0, 0, -8f);
             UiFactory.Label("Text", tag.transform, "NEW", 40, Color.white);
-            AddCardButton(card, "Try Unload", Palette.Hex("EE8A2B"), tryIt, 0);
-            AddCardButton(card, "Keep loading", Palette.Hex("2F7FE0"), keepLoading, 1);
         }
 
         /// <summary>Out of a booster: one more for a video or for coins.</summary>
         public void ShowBoosterOffer(string booster, int price, bool canAfford, Action watchVideo, Action buy, Action cancel)
         {
-            var card = Card($"Out of {booster}", $"Get one more. You have {SaveData.Coins} coins.", 3);
-            AddCardButton(card, "Watch a video: +1", _pal.uiGood, watchVideo, 0);
-            AddCardButton(card, $"Buy 1 for {price} coins", canAfford ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), buy, 1);
+            var card = Card($"Out of {booster}", $"You have {SaveData.Coins} coins.", 3);
+            AddCardButton(card, "+1 free", _pal.uiGood, watchVideo, 0, "video");
+            AddCardButton(card, $"+1 for {price}", canAfford ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), buy, 1, "coin");
             AddCardButton(card, "Not now", Palette.Hex("8A8F98"), cancel, 2);
         }
 
@@ -236,26 +238,69 @@ namespace Dockside
             if (rt) Destroy(rt.gameObject);
         }
 
-        public void ShowPause(Action resume, Action modes, Action achievements, Action restart, Action skip, string soundLabel, Action toggleSound,
-                              string remindersLabel, Action toggleReminders, Action privacy,
-                              string skyLabel, Action cycleSky, string port, Action goToLevel = null, Action testReminder = null)
+        /// <summary>
+        /// Pause menu: one big Resume, then icon tiles (two rows of three). Toggles show their state with the icon and
+        /// an ON/OFF badge, not colour alone. Test builds get one more row that opens the test tools.
+        /// </summary>
+        public void ShowPause(string port, Action resume, Action modes, Action achievements, Action privacy, Action restart,
+                              bool soundOn, Action toggleSound, bool remindersOn, Action toggleReminders, Action testTools = null)
         {
-            // Sky preview and Skip level are test tools: the caller passes null for them in release builds.
-            var buttons = new System.Collections.Generic.List<(string label, Color color, Action action)>
+            const float TileW = 250, TileH = 210, Gap = 26;
+            float gridTop = 420, gridH = TileH * 2 + Gap;
+            float height = gridTop + gridH + (testTools != null ? 170 : 0) + 70;
+            var rt = CardFrame("Paused", port, 900, height, 0);
+
+            var resumeBtn = UiFactory.Button("Resume", rt, _pal.uiGood, Palette.Darken(_pal.uiGood, 0.3f), resume, "Resume");
+            var brt = (RectTransform)resumeBtn.transform;
+            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 1);
+            brt.anchoredPosition = new Vector2(0, -250); brt.sizeDelta = new Vector2(TileW * 3 + Gap * 2, 140);
+            IconAndLabel(brt, "play", "Resume", 54, 64);
+
+            var tiles = new (string icon, string label, Color color, Action action, string badge)[]
             {
-                ("Resume", _pal.uiGood, resume),
-                ("Game modes", Palette.Hex("EE8A2B"), modes),
-                ("Achievements", Palette.Hex("1B8C8A"), achievements),
-                (soundLabel, Palette.Hex("2F7FE0"), toggleSound),
-                (remindersLabel, Palette.Hex("2F7FE0"), toggleReminders),
+                ("modes", "Modes", Palette.Hex("EE8A2B"), modes, null),
+                ("trophy", "Awards", Palette.Hex("1B8C8A"), achievements, null),
+                ("shield", "Privacy", Palette.Hex("9B5DE5"), privacy, null),
+                (soundOn ? "sound_on" : "sound_off", "Sound", Palette.Hex("2F7FE0"), toggleSound, soundOn ? "ON" : "OFF"),
+                (remindersOn ? "bell_on" : "bell_off", "Reminders", Palette.Hex("2F7FE0"), toggleReminders, remindersOn ? "ON" : "OFF"),
+                ("restart", "Restart", _pal.uiAccent, restart, null),
             };
-            if (cycleSky != null) buttons.Add((skyLabel, Palette.Hex("2F7FE0"), cycleSky));
-            buttons.Add(("Privacy", Palette.Hex("9B5DE5"), privacy));
-            buttons.Add(("Restart level", _pal.uiAccent, restart));
-            if (goToLevel != null) buttons.Add(("Go to level... (test)", Palette.Hex("8A8F98"), goToLevel));
-            if (skip != null) buttons.Add(("Skip level (test)", Palette.Hex("8A8F98"), skip));
-            if (testReminder != null) buttons.Add(("Reminder in 1 min (test)", Palette.Hex("8A8F98"), testReminder));
-            var card = Card("Paused", $"Port: {port}", buttons.Count);
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                var (icon, label, color, action, badge) = tiles[i];
+                var tile = UiFactory.Button(label, rt, color, Palette.Darken(color, 0.3f), action, label);
+                var trt = (RectTransform)tile.transform;
+                trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 1);
+                trt.sizeDelta = new Vector2(TileW, TileH);
+                trt.anchoredPosition = new Vector2((i % 3 - 1) * (TileW + Gap), -gridTop - (i / 3) * (TileH + Gap));
+                var ih = UiFactory.Rect("IconHolder", trt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 26), new Vector2(92, 92));
+                UiFactory.Icon(icon, ih, Color.white, 92);
+                var lab = UiFactory.Rect("Label", trt, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(0, 54));
+                UiFactory.Label("Text", lab, label, 40, Color.white);
+                if (badge != null)
+                {
+                    var b = UiFactory.Panel("Badge", trt, badge == "ON" ? Palette.Hex("2FB36B") : Palette.Hex("6F6A66"), Palette.Hex("2E2422"), 4f);
+                    var bt = (RectTransform)b.transform;
+                    bt.anchorMin = bt.anchorMax = new Vector2(1, 1); bt.pivot = new Vector2(0.5f, 0.5f);
+                    bt.anchoredPosition = new Vector2(-30, -6); bt.sizeDelta = new Vector2(92, 52);
+                    UiFactory.Label("Text", b.transform, badge, 32, Color.white);
+                }
+            }
+
+            if (testTools != null)
+            {
+                var tools = UiFactory.Button("Test tools", rt, Palette.Hex("8A8F98"), Palette.Darken(Palette.Hex("8A8F98"), 0.3f), testTools, "Test tools");
+                var tt = (RectTransform)tools.transform;
+                tt.anchorMin = tt.anchorMax = tt.pivot = new Vector2(0.5f, 1);
+                tt.anchoredPosition = new Vector2(0, -gridTop - gridH - 50); tt.sizeDelta = new Vector2(TileW * 3 + Gap * 2, 110);
+                UiFactory.Label("Text", tools.transform, "Test tools", 40, Color.white);
+            }
+        }
+
+        /// <summary>A plain list of buttons (e.g. the test tools), first one on top.</summary>
+        public void ShowButtons(string title, string body, System.Collections.Generic.IList<(string label, Color color, Action action)> buttons)
+        {
+            var card = Card(title, body, buttons.Count);
             for (int i = 0; i < buttons.Count; i++) AddCardButton(card, buttons[i].label, buttons[i].color, buttons[i].action, i);
         }
 
@@ -282,7 +327,7 @@ namespace Dockside
         public void ShowReminderOffer(Action yes, Action notNow)
         {
             var card = Card("Want a nudge?",
-                "We can remind you when the ships have been waiting a while. At most one a day, and never late at night.", 2);
+                "We'll nudge you when ships are waiting. At most once a day, never at night.", 2);
             AddCardButton(card, "Yes, remind me", _pal.uiGood, yes, 0);
             AddCardButton(card, "Not now", Palette.Hex("8A8F98"), notNow, 1);
         }
@@ -291,16 +336,9 @@ namespace Dockside
         public void ShowRemindersBlocked(Action openSettings, Action back)
         {
             var card = Card("Notifications are off",
-                "Notifications for Dockside Dispatch are turned off in your phone's settings. Turn them on there to get reminders.", 2);
+                "Notifications for this game are off in your phone's settings.", 2);
             AddCardButton(card, "Open settings", _pal.uiGood, openSettings, 0);
             AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 1);
-        }
-
-        /// <summary>One-off explainer card (tutorial), closed with a single button.</summary>
-        public void ShowTip(string title, string body, Action close)
-        {
-            var card = Card(title, body, 1);
-            AddCardButton(card, "Got it", _pal.uiGood, close, 0);
         }
 
         private int _cardButtons;
@@ -309,19 +347,108 @@ namespace Dockside
 
         private RectTransform Card(string title, string body, int buttons)
         {
+            _cardButtons = buttons;
+            var rt = CardFrame(title, null, 860, 420 + buttons * ButtonStep, buttons);
+            var b = UiFactory.Rect("Body", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -190), new Vector2(-100, 180));
+            UiFactory.Label("BodyText", b, body, 44, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            return rt;
+        }
+
+        /// <summary>The cream card on the dimmed overlay, with its title (and an optional one-line subtitle).</summary>
+        private RectTransform CardFrame(string title, string subtitle, float width, float height, int buttons)
+        {
             HidePanels();
             _overlay.gameObject.SetActive(true);
             var card = UiFactory.Panel("Card", _overlay, _pal.uiCream, _pal.uiShadow, 16f);
             var rt = (RectTransform)card.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             _cardButtons = buttons;
-            rt.sizeDelta = new Vector2(860, 420 + buttons * ButtonStep);
-            var t = UiFactory.Rect("Title", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -60), new Vector2(-80, 110));
+            rt.sizeDelta = new Vector2(width, height);
+            var t = UiFactory.Rect("Title", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, subtitle != null ? -40 : -60), new Vector2(-80, 110));
             UiFactory.Label("TitleText", t, title, 76, _pal.uiText);
-            var b = UiFactory.Rect("Body", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -190), new Vector2(-100, 180));
-            UiFactory.Label("BodyText", b, body, 44, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
-            StartCoroutine(Tween.Run(0.3f, e => { if (rt) rt.localScale = Vector3.one * Mathf.LerpUnclamped(0.8f, 1f, e); }, Tween.EaseOutBack));
+            if (subtitle != null)
+            {
+                var st = UiFactory.Rect("Subtitle", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(-80, 60));
+                UiFactory.Label("SubtitleText", st, subtitle, 40, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            }
+            AnimateIn(rt);
             return rt;
+        }
+
+        /// <summary>Cards fade in with a slight scale (under 200 ms, no bounce); with reduced motion they just appear.</summary>
+        private void AnimateIn(RectTransform rt)
+        {
+            if (MotionPrefs.Reduced) return;
+            var group = rt.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+            StartCoroutine(Tween.Run(0.18f, e =>
+            {
+                if (!rt) return;
+                group.alpha = e;
+                rt.localScale = Vector3.one * Mathf.Lerp(0.95f, 1f, e);
+            }, Tween.EaseOutCubic));
+        }
+
+        /// <summary>
+        /// Tutorial card: title, a mini screen where a short scene shows the mechanic (DemoStage), a one- or two-line
+        /// caption, and its buttons.
+        /// </summary>
+        public RectTransform ShowDemo(string title, string caption, DemoKind kind, Core.GameMode mode, params (string label, Color color, Action action)[] buttons)
+        {
+            const float ScreenW = 780, ScreenH = ScreenW * DemoStage.TexHeight / DemoStage.TexWidth;
+            int n = buttons.Length;
+            _cardButtons = n;
+            float height = 170 + ScreenH + 150 + n * ButtonStep + 50;
+            var rt = CardFrame(title, null, 880, height, n);
+
+            // Mini screen: a dark rounded frame, the demo texture inside it (rounded by a mask), and the tap overlay.
+            var frame = UiFactory.Panel("ScreenFrame", rt, Palette.Hex("2E2422"));
+            var frt = (RectTransform)frame.transform;
+            frt.anchorMin = frt.anchorMax = frt.pivot = new Vector2(0.5f, 1);
+            frt.anchoredPosition = new Vector2(0, -165); frt.sizeDelta = new Vector2(ScreenW + 20, ScreenH + 20);
+            var maskImg = UiFactory.Panel("Mask", frt, Color.white);
+            var mrt = (RectTransform)maskImg.transform;
+            UiFactory.Stretch(mrt, 10f);
+            maskImg.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+            var screen = UiFactory.Rect("Screen", mrt, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            var raw = screen.gameObject.AddComponent<RawImage>();
+            raw.raycastTarget = false;
+            var stage = DemoStage.Instance;
+            if (stage)
+            {
+                stage.Play(kind, mode);
+                raw.texture = stage.Texture;
+                DemoOverlay.Attach(screen, _pal);
+            }
+
+            var cap = UiFactory.Rect("Caption", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -165 - ScreenH - 40), new Vector2(-90, 120));
+            UiFactory.Label("CaptionText", cap, caption, 42, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            for (int i = 0; i < n; i++) AddCardButton(rt, buttons[i].label, buttons[i].color, buttons[i].action, i);
+            return rt;
+        }
+
+        /// <summary>An icon (white) and a label side by side, centred in a button.</summary>
+        private static void IconAndLabel(RectTransform button, string icon, string label, int fontSize, float iconSize)
+        {
+            var row = UiFactory.Rect("Content", button, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(0, iconSize));
+            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = 22; layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = layout.childControlHeight = false;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            var fit = row.gameObject.AddComponent<ContentSizeFitter>();
+            fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var ih = UiFactory.Rect("IconHolder", row, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(iconSize, iconSize));
+            if (icon == "coin")
+            {
+                var coin = UiFactory.Panel("Coin", ih, Palette.Hex("F7C431"), Palette.Hex("C9952A"), 5f);
+                UiFactory.Stretch((RectTransform)coin.transform, iconSize * 0.08f);
+            }
+            else UiFactory.Icon(icon, ih, Color.white, iconSize);
+            var t = UiFactory.Label("Text", row, label, fontSize, Color.white);
+            var trt = (RectTransform)t.transform;
+            trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0.5f);
+            t.horizontalOverflow = HorizontalWrapMode.Overflow;
+            trt.sizeDelta = new Vector2(t.preferredWidth + 4, iconSize);
         }
 
         /// <summary>Test tool: step through levels with -5/-1/+1/+5 (5 = one port) and play the chosen one.</summary>
@@ -349,7 +476,7 @@ namespace Dockside
             AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 2);
         }
 
-        private void AddCardButton(RectTransform card, string label, Color color, Action onClick, int index)
+        private void AddCardButton(RectTransform card, string label, Color color, Action onClick, int index, string icon = null)
         {
             var b = UiFactory.Button(label, card, color, Palette.Darken(color, 0.3f), onClick, label);
             var rt = (RectTransform)b.transform;
@@ -357,7 +484,8 @@ namespace Dockside
             rt.pivot = new Vector2(0.5f, 0);
             rt.sizeDelta = new Vector2(680, ButtonStep - 30);
             rt.anchoredPosition = new Vector2(0, 60 + (_cardButtons - 1 - index) * ButtonStep); // first button on top
-            UiFactory.Label("Text", b.transform, label, 46, Color.white);
+            if (icon != null) IconAndLabel(rt, icon, label, 46, 60);
+            else UiFactory.Label("Text", b.transform, label, 46, Color.white);
         }
     }
 

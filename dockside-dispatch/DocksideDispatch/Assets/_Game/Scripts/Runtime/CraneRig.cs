@@ -16,6 +16,8 @@ namespace Dockside
 
         private Transform _spreader, _cableA, _cableB, _trolley;
         private Palette _pal;
+        /// <summary>No sounds (the tutorial demo's crane).</summary>
+        public bool Silent;
 
         public static CraneRig Create(Transform parent, Palette pal)
         {
@@ -84,7 +86,7 @@ namespace Dockside
             yield return Tween.Run(0.42f, e => { _spreader.position = Vector3.LerpUnclamped(high, grip, e); UpdateCables(); }, Tween.EaseOutCubic);
 
             // 2. Grip: a little settle, and the motor whirrs.
-            Sfx.Play("crane", 0.9f);
+            if (!Silent) Sfx.Play("crane", 0.9f);
             yield return Tween.Run(0.12f, e => { _spreader.position = grip + Vector3.down * Mathf.Sin(e * Mathf.PI) * 0.05f; UpdateCables(); });
 
             // 3. Hoist straight up, out of the stack (with a slight sway).
@@ -119,7 +121,7 @@ namespace Dockside
                 _spreader.position = container.position + Vector3.up * container.localScale.y * 0.5f;
                 UpdateCables();
             }, Tween.EaseOutCubic);
-            Sfx.Play("land");
+            if (!Silent) Sfx.Play("land");
 
             // 6. Release and rise away (the game continues meanwhile).
             StartCoroutine(RiseAway());

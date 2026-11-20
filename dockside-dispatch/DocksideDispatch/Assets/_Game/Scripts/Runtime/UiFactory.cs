@@ -173,7 +173,7 @@ namespace Dockside
             rt.offsetMax = new Vector2(-inset, -inset);
         }
 
-        /// <summary>Simple icons drawn from rectangles (pause, plus, hook, shuffle) so no icon font is needed.</summary>
+        /// <summary>Simple icons drawn from rectangles (pause, plus, hook, undo) so no icon font is needed.</summary>
         public static void Icon(string kind, Transform parent, Color color, float size)
         {
             var root = Rect("Icon_" + kind, parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
@@ -200,7 +200,7 @@ namespace Dockside
                 case "pause": Bar(-0.17f, 0, 0.18f, 0.7f); Bar(0.17f, 0, 0.18f, 0.7f); break;
                 case "berth": Bar(0, 0, 0.7f, 0.14f); Bar(0, 0, 0.14f, 0.7f); break;
                 case "crane": Bar(0, 0.22f, 0.14f, 0.5f); Bar(0, 0.47f, 0.6f, 0.12f); Bar(0.12f, -0.12f, 0.36f, 0.12f); Bar(0.24f, -0.02f, 0.12f, 0.24f); break;
-                case "shuffle": Bar(0, 0, 0.8f, 0.12f, 35); Bar(0, 0, 0.8f, 0.12f, -35); Bar(0.3f, 0.28f, 0.22f, 0.12f); Bar(0.3f, -0.28f, 0.22f, 0.12f); break;
+                case "undo": Bar(0.05f, 0.22f, 0.6f, 0.12f); Bar(-0.3f, 0.32f, 0.3f, 0.12f, 40); Bar(-0.3f, 0.12f, 0.3f, 0.12f, -40); Bar(0.3f, 0, 0.12f, 0.5f); Bar(0.05f, -0.22f, 0.6f, 0.12f); break;
                 case "retry": Bar(0, 0.25f, 0.5f, 0.12f); Bar(-0.25f, 0, 0.12f, 0.5f); Bar(0, -0.25f, 0.5f, 0.12f); Bar(0.25f, 0.12f, 0.12f, 0.26f); break;
             }
         }

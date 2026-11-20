@@ -28,6 +28,9 @@ namespace Dockside
         /// <summary>Comes in from the left and stops at pos.</summary>
         public abstract IEnumerator Arrive(Vector3 pos, float duration);
 
+        /// <summary>Placed straight at its berth, already docked (the scene rebuilt after an Undo).</summary>
+        public abstract void Park(Vector3 pos);
+
         /// <summary>Leaves to the right, full.</summary>
         public abstract IEnumerator Depart(float duration);
 

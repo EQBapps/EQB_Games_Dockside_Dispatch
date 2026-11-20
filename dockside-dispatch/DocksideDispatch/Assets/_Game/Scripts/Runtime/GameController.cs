@@ -52,7 +52,7 @@ namespace Dockside
         private bool _craneArmed, _usedSecondChance, _ended;
         private float _levelStartTime, _lastAspect;
         private int _boostersUsed;
-        private readonly System.Random _rng = new System.Random();
+        private bool _rewinding;   // Undo: the container taken back is flying home to the yard; taps wait for it
 
         public void Init(Palette palette, Camera cam)
         {
@@ -62,6 +62,9 @@ namespace Dockside
             _hud.PauseClicked += OnPause;
             _hud.BoosterClicked += OnBooster;
             _tutorial = TutorialView.Create(_hud, cam, palette);
+            // The tutorial cards' mini screen films its own little harbour; the board camera never sees it.
+            DemoStage.Create(palette);
+            cam.cullingMask &= ~(1 << DemoStage.Layer);
             _hud.SetCoins(SaveData.Coins);
             foreach (BoosterType t in System.Enum.GetValues(typeof(BoosterType))) _hud.SetBooster(t, SaveData.Boosters(t));
             _menu = ModeMenuView.Create(palette);
@@ -210,11 +213,12 @@ namespace Dockside
             _usedSecondChance = false;
             _ended = false;
             _boostersUsed = 0;
+            _rewinding = false;
 
             _levelNumber = levelNumber;
             BoardLayout.QuayShift = _mode == GameMode.Unload ? BoardLayout.UnloadQuayShift : 0f;
             var level = LevelRepository.Get(levelNumber, _mode);
-            _session = new GameSession(level);
+            _session = new GameSession(level) { KeepHistory = true };   // every move can be taken back with Undo
             _layout = new BoardLayout(level.width, level.height, level.berths);
             _layout.FitCamera(_cam, CameraPitch, HudView.TopMargin, HudView.BottomMargin);
             _lastAspect = _cam.aspect;
@@ -233,14 +237,7 @@ namespace Dockside
 
             _yardRoot = new GameObject("Yard").transform;
             _yardRoot.SetParent(_levelRoot, false);
-            for (int i = 0; i < _session.ContainerCount; i++)
-            {
-                var spec = _session.Spec(i);
-                var view = ContainerView.Create(_yardRoot, spec, _pal);
-                view.transform.localScale = _layout.YardContainerScale(spec.length);
-                view.transform.position = _layout.CellCenter(spec.x, spec.y, spec.length);
-                _containers[i] = view;
-            }
+            for (int i = 0; i < _session.ContainerCount; i++) CreateContainerView(i);
 
             _shipsRoot = new GameObject("Ships").transform;
             _shipsRoot.SetParent(_levelRoot, false);
@@ -291,12 +288,28 @@ namespace Dockside
                 b => _ships != null && _ships[b] && Vector3.Distance(_ships[b].transform.position, BerthPosition(b)) < 0.3f);
         }
 
-        private IEnumerator DockShip(int berth, int shipIndex, float delay)
+        /// <summary>A container's view, in its yard cell (the controller moves it from there).</summary>
+        private ContainerView CreateContainerView(int index)
+        {
+            var spec = _session.Spec(index);
+            var view = ContainerView.Create(_yardRoot, spec, _pal);
+            view.transform.localScale = _layout.YardContainerScale(spec.length);
+            view.transform.position = _layout.CellCenter(spec.x, spec.y, spec.length);
+            _containers[index] = view;
+            return view;
+        }
+
+        private VehicleView CreateVehicle(int shipIndex)
         {
             var spec = _session.Level.ships[shipIndex];
-            VehicleView ship = _mode == GameMode.Unload
+            return _mode == GameMode.Unload
                 ? TruckView.Create(_shipsRoot, shipIndex, spec.color, spec.capacity, _pal, SkyTheme.Current(_pal))
                 : ShipView.Create(_shipsRoot, shipIndex, spec.color, spec.capacity, _pal);
+        }
+
+        private IEnumerator DockShip(int berth, int shipIndex, float delay)
+        {
+            var ship = CreateVehicle(shipIndex);
             _ships[berth] = ship;
             ship.transform.position = BerthPosition(berth) + new Vector3(-12f, 0, 0);
             if (delay > 0) yield return new WaitForSeconds(delay);
@@ -327,7 +340,7 @@ namespace Dockside
                 _lastAspect = _cam.aspect;
                 _layout.FitCamera(_cam, CameraPitch, HudView.TopMargin, HudView.BottomMargin);
             }
-            if (_session == null || _session.IsOver || _hud.IsModalOpen || _menuOpen) return;
+            if (_session == null || _session.IsOver || _hud.IsModalOpen || _menuOpen || _rewinding) return;
             if (!TryGetPress(out Vector2 screenPos)) return;
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
             var ray = _cam.ScreenPointToRay(screenPos);
@@ -381,19 +394,17 @@ namespace Dockside
                 case TapResult.Blocked:
                     StartCoroutine(Tween.Shake(view.transform));
                     Sfx.Play("blocked", 0.7f);
-                    _hud.Toast("Blocked: clear a path to the quay first");
+                    _hud.Toast("Blocked: clear a path first");
                     break;
                 case TapResult.Locked:
                     StartCoroutine(Tween.Shake(view.transform));
                     Sfx.Play("blocked", 0.7f);
-                    _hud.Toast(_craneArmed
-                        ? "Crane Lift can't move a locked container. Send off the one with the gold key first."
-                        : "Locked: send off the container with the gold key first");
+                    _hud.Toast(_craneArmed ? "The crane can't lift a locked container" : "Locked: send off its gold key first");
                     break;
                 case TapResult.NoRoom:
                     StartCoroutine(Tween.Shake(view.transform));
                     Sfx.Play("blocked", 0.7f);
-                    _hud.Toast("No room for that in the holding bay");
+                    _hud.Toast("No room in the holding bay");
                     break;
             }
         }
@@ -728,9 +739,20 @@ namespace Dockside
             Analytics.Event("level_fail", ("level", _levelNumber), ("reason", _session.LoseReason), ("moves", _session.MovesMade),
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("second_chance", _usedSecondChance), ("mode", _mode));
             Sfx.Play("lose");
+            int undos = SaveData.Boosters(BoosterType.Undo);
             _hud.ShowLose(reason, !_usedSecondChance, SecondChance,
-                coinsLabel: $"Use {ContinuePrice} coins: +2 bay slots", canAffordCoins: SaveData.Coins >= ContinuePrice,
-                continueWithCoins: ContinueWithCoins, retry: () => StartLevel(_levelNumber));
+                coinsLabel: $"+2 bay slots for {ContinuePrice}", canAffordCoins: SaveData.Coins >= ContinuePrice,
+                continueWithCoins: ContinueWithCoins, retry: () => StartLevel(_levelNumber),
+                undoLabel: $"Undo move ({undos} left)",
+                undo: undos > 0 && _session.CanUndo ? UndoFromLose : (System.Action)null);
+        }
+
+        /// <summary>The lose card's Undo: the move that filled the bay is taken back and the level carries on.</summary>
+        private void UndoFromLose()
+        {
+            _hud.HidePanels();
+            UndoMove(fromLose: true);
+            ConsumeBooster(BoosterType.Undo);
         }
 
         private void SecondChance()
@@ -738,7 +760,7 @@ namespace Dockside
             // Rewarded video: the reward (2 extra bay slots) is granted when the player has earned it.
             var ads = AdManager.Instance;
             if (ads == null || !ads.ShowRewarded("second_chance", GrantSecondChance))
-                _hud.Toast("No video is available right now. Try again in a moment.");
+                _hud.Toast("No video right now. Try again soon.");
         }
 
         private void ContinueWithCoins()
@@ -752,7 +774,7 @@ namespace Dockside
         {
             if (SaveData.Coins < price)
             {
-                _hud.Toast($"You need {price - SaveData.Coins} more coins. Each level you finish pays {WinCoins}.");
+                _hud.Toast($"Need {price - SaveData.Coins} more coins (+{WinCoins} a level)");
                 return false;
             }
             SaveData.Coins -= price;
@@ -779,7 +801,11 @@ namespace Dockside
         // =====================================================================
         private void OnBooster(BoosterType type)
         {
-            if (_session == null || _session.IsOver || _hud.IsModalOpen || _menuOpen) return;
+            if (_session == null || _session.IsWon || _ended || _hud.IsModalOpen || _menuOpen || _rewinding) return;
+            // Once a level is lost, only Undo still helps (until the lose card offers it, a second chance or a retry).
+            if (_session.IsLost && type != BoosterType.Undo) return;
+            if (_tutorial.TryShowBoosterIntro(type, () => OnBooster(type))) return;   // first tap: what it does, then it acts
+            if (type == BoosterType.Undo && !_session.CanUndo) { _hud.Toast("Nothing to undo yet"); return; }
             int count = SaveData.Boosters(type);
             if (count <= 0)
             {
@@ -797,7 +823,7 @@ namespace Dockside
                         _hud.HidePanels();
                         var ads = AdManager.Instance;
                         if (ads == null || !ads.ShowRewarded("booster_" + type, Give))
-                            _hud.Toast("No video is available right now. Try again in a moment.");
+                            _hud.Toast("No video right now. Try again soon.");
                     },
                     buy: () => { _hud.HidePanels(); if (TrySpend(price, "booster", type.ToString())) Give(); },
                     cancel: () => _hud.HidePanels());
@@ -806,7 +832,7 @@ namespace Dockside
             switch (type)
             {
                 case BoosterType.ExtraBerth:
-                    if (_session.BufferCapacity >= MaxBufferSlots) { _hud.Toast("The holding bay can't grow any bigger"); return; }
+                    if (_session.BufferCapacity >= MaxBufferSlots) { _hud.Toast("The bay can't grow any bigger"); return; }
                     var ev = new List<GameEvent>();
                     _session.AddBufferSlots(1, ev);
                     _bufferSlots.SetCapacity(_session.BufferCapacity);
@@ -821,17 +847,8 @@ namespace Dockside
                     _hud.SetCraneHint(_craneArmed);
                     _hud.SetBooster(type, count, _craneArmed);
                     break;
-                case BoosterType.Shuffle:
-                    var sev = new List<GameEvent>();
-                    _session.ShuffleYard(_rng, sev);
-                    Sfx.Play("shuffle");
-                    foreach (var kv in _containers)
-                    {
-                        if (!_session.InYard(kv.Key)) continue;
-                        kv.Value.SetColor(_session.Spec(kv.Key).color);
-                        StartCoroutine(Tween.Pop(kv.Value.transform, 0.15f, 0.25f));
-                    }
-                    Enqueue(sev);
+                case BoosterType.Undo:
+                    UndoMove(fromLose: false);
                     ConsumeBooster(type);
                     break;
             }
@@ -850,13 +867,133 @@ namespace Dockside
         {
             BoosterType.ExtraBerth => "Extra Berth",
             BoosterType.CraneLift => "Crane Lift",
-            _ => "Shuffle",
+            _ => "Undo",
         };
+
+        // =====================================================================
+        // Undo
+        // =====================================================================
+        /// <summary>
+        /// Takes back the last tap. The rules restore the state before it; the scene is rebuilt from that state (any
+        /// animation still running is cut short, so a ship that had just left is back at its berth), and the container
+        /// that was tapped flies home to its yard cell from wherever it is now.
+        /// </summary>
+        private void UndoMove(bool fromLose)
+        {
+            bool wasLost = _session.IsLost;
+            int id = _session.Undo();
+            if (id < 0) return;
+            bool hadView = _containers.TryGetValue(id, out var old) && old;
+            Vector3 fromPos = hadView ? old.transform.position : Vector3.zero, fromScale = hadView ? old.transform.lossyScale : Vector3.one;
+            Quaternion fromRot = hadView ? old.transform.rotation : Quaternion.identity;
+
+            RebuildFromState();
+
+            var view = _containers[id];
+            Vector3 cell = view.transform.position, scale = view.transform.localScale;
+            Quaternion rest = view.transform.rotation;
+            if (!hadView) { fromPos = cell + Vector3.up * 3f; fromRot = rest; fromScale = scale; }   // it left on a ship: drop it in
+            view.transform.SetPositionAndRotation(fromPos, fromRot);
+            view.transform.localScale = fromScale;
+            StartCoroutine(FlyHome(view, cell, scale, rest));
+            Analytics.Event("undo", ("level", _levelNumber), ("mode", _mode), ("from_lose", fromLose), ("was_lost", wasLost),
+                ("moves", _session.MovesMade));
+        }
+
+        private IEnumerator FlyHome(ContainerView view, Vector3 cell, Vector3 scale, Quaternion rest)
+        {
+            _rewinding = true;
+            Sfx.Play("lift", 0.6f);
+            yield return Tween.Arc(view.transform, cell, 1.2f, 0.3f, scale, rest);
+            if (view)
+            {
+                view.transform.SetPositionAndRotation(cell, rest);
+                view.transform.localScale = scale;
+                Sfx.Play("land");
+                StartCoroutine(Tween.Pop(view.transform, 0.15f, 0.18f));
+            }
+            _rewinding = false;
+        }
+
+        /// <summary>
+        /// Rebuilds containers, vehicles and the holding bay from the session's state, with nothing in motion: yard
+        /// containers in their cells, the vehicles at their berths with their loads, the bay in order.
+        /// </summary>
+        private void RebuildFromState()
+        {
+            StopAllCoroutines();
+            _pending.Clear();
+            _playing = false;
+            _deliveries.Clear();
+            _hovering.Clear();
+            _backgroundPlays = 0;
+            _rewinding = false;
+            if (_craneRig) Destroy(_craneRig.gameObject);   // it may have been cut off mid-lift
+            _craneRig = CraneRig.Create(_levelRoot, _pal);
+            _craneLifted = -1;
+
+            foreach (var v in _containers.Values) if (v) Destroy(v.gameObject);
+            _containers.Clear();
+            _viewBuffer.Clear();
+            // Every vehicle, including one still driving or sailing away (its containers go with it).
+            for (int i = _shipsRoot.childCount - 1; i >= 0; i--) Destroy(_shipsRoot.GetChild(i).gameObject);
+
+            _ships = new VehicleView[_session.BerthCount];
+            for (int b = 0; b < _session.BerthCount; b++)
+            {
+                int shipIndex = _session.ShipAtBerth(b);
+                if (shipIndex < 0) continue;
+                var ship = CreateVehicle(shipIndex);
+                ship.Park(BerthPosition(b));
+                _ships[b] = ship;
+                int slot = 0;
+                foreach (int ci in _session.LoadAtBerth(b))
+                {
+                    var view = CreateContainerView(ci);
+                    int len = view.Length;
+                    view.Detach();
+                    view.SetLocked(false);
+                    view.SetRevealed(true);
+                    view.transform.SetPositionAndRotation(ship.SlotWorldPosition(slot, len), ship.transform.rotation);
+                    view.transform.localScale = BoardLayout.ContainerScale(len) * ship.StowScale;
+                    view.transform.SetParent(ship.transform, true);
+                    view.transform.localPosition = ship.SlotLocalPosition(slot, len);
+                    view.transform.localRotation = Quaternion.identity;
+                    slot += len;
+                }
+                ship.SetLoaded(slot);
+            }
+
+            int cap = _session.BufferCapacity;
+            foreach (int ci in _session.Buffer)
+            {
+                var view = CreateContainerView(ci);
+                view.Detach();
+                view.SetLocked(false);
+                view.SetRevealed(true);
+                _viewBuffer.Add(ci);
+                view.transform.position = BoardLayout.BufferPosition(SlotOfViewItem(_viewBuffer.Count - 1), view.Length, cap);
+                view.transform.localScale = BoardLayout.BufferScale(view.Length, cap);
+            }
+            _bufferSlots.SetCapacity(cap);
+            _bufferSlots.SetUsed(SlotOfViewItem(_viewBuffer.Count));
+
+            for (int i = 0; i < _session.ContainerCount; i++)
+            {
+                if (!_session.InYard(i)) continue;
+                var view = CreateContainerView(i);
+                view.SetRevealed(_session.IsRevealed(i));
+            }
+
+            _shipsDepartedShown = _session.ShipsDeparted;
+            _hud.SetShips(_shipsDepartedShown, _session.ShipsTotal, VehicleNoun);
+            RefreshYard();
+        }
 
         private void OnPause()
         {
             if (_hud.IsModalOpen || _menuOpen) return;
-            _hud.ShowPause(
+            _hud.ShowPause(PortSkylines.NameForLevel(_levelNumber),
                 resume: () => _hud.HidePanels(),
                 modes: () => { _hud.HidePanels(); ShowModeMenu(); },
                 achievements: () =>
@@ -864,18 +1001,27 @@ namespace Dockside
                     _hud.HidePanels();
                     GameServices.ShowAchievements(failed => _hud.Banner("Couldn't sign in to Play Games", "Check your connection and try again"));
                 },
-                restart: () => StartLevel(_levelNumber),
-                skip: DevTools ? () => { SaveData.SetLevelFor(_mode, _levelNumber + 1); StartLevel(_levelNumber + 1); } : (System.Action)null,
-                soundLabel: Sfx.Enabled ? "Sound: On" : "Sound: Off",
-                toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
-                remindersLabel: Notifications.Active ? "Reminders: On" : "Reminders: Off",
-                toggleReminders: ToggleReminders,
                 privacy: ShowPrivacy,
-                goToLevel: DevTools ? ShowLevelPicker : (System.Action)null,
-                skyLabel: SkyTheme.Override < 0 ? $"Sky: Auto ({SkyTheme.Label(SkyTheme.CurrentPhase)})" : $"Sky: {SkyTheme.Label(SkyTheme.CurrentPhase)}",
-                cycleSky: DevTools ? () => { SkyTheme.Override = SkyTheme.Override >= 4 ? -1 : SkyTheme.Override + 1; RebuildEnvironment(); _hud.HidePanels(); OnPause(); } : (System.Action)null,
-                port: PortSkylines.NameForLevel(_levelNumber),
-                testReminder: DevTools ? () =>
+                restart: () => StartLevel(_levelNumber),
+                soundOn: Sfx.Enabled,
+                toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
+                remindersOn: Notifications.Active,
+                toggleReminders: ToggleReminders,
+                testTools: DevTools ? ShowTestTools : (System.Action)null);
+        }
+
+        /// <summary>Test builds only: the tools that used to crowd the pause menu.</summary>
+        private void ShowTestTools()
+        {
+            var grey = Palette.Hex("8A8F98");
+            var blue = Palette.Hex("2F7FE0");
+            _hud.ShowButtons("Test tools", $"Level {_levelNumber} · {PortSkylines.NameForLevel(_levelNumber)}", new List<(string, Color, System.Action)>
+            {
+                (SkyTheme.Override < 0 ? $"Sky: Auto ({SkyTheme.Label(SkyTheme.CurrentPhase)})" : $"Sky: {SkyTheme.Label(SkyTheme.CurrentPhase)}", blue,
+                    () => { SkyTheme.Override = SkyTheme.Override >= 4 ? -1 : SkyTheme.Override + 1; RebuildEnvironment(); _hud.HidePanels(); ShowTestTools(); }),
+                ("Go to level...", blue, ShowLevelPicker),
+                ("Skip level", blue, () => { SaveData.SetLevelFor(_mode, _levelNumber + 1); StartLevel(_levelNumber + 1); }),
+                ("Reminder in 1 min", blue, () =>
                 {
                     _hud.HidePanels();
                     StartCoroutine(Notifications.RequestPermission(ok =>
@@ -883,7 +1029,17 @@ namespace Dockside
                         if (ok) Notifications.SendTest(SaveData.Level, SaveData.UnloadUnlocked && !SaveData.UnloadPlayed);
                         _hud.Banner(ok ? "Reminder in 1 minute" : "Notifications are blocked", ok ? "Leave the game to see it" : "Check the phone's settings");
                     }));
-                } : (System.Action)null);
+                }),
+                ("Replay tutorials", blue, () =>
+                {
+                    foreach (var k in new[] { TutorialView.TapKey, TutorialView.BayKey, TutorialView.LongKey, TutorialView.LockKey, TutorialView.HiddenKey,
+                                              TutorialView.LoadIntroKey, TutorialView.UnloadIntroKey, "unload.tap", "unload.bay",
+                                              "booster.ExtraBerth", "booster.CraneLift", "booster.Undo" })
+                        PlayerPrefs.DeleteKey("dd.tut." + k);
+                    StartLevel(_levelNumber);
+                }),
+                ("Back", grey, () => { _hud.HidePanels(); OnPause(); }),
+            });
         }
 
         /// <summary>Test tool: pick any level (and so any port) and play it straight away.</summary>
@@ -892,7 +1048,7 @@ namespace Dockside
             _hud.ShowLevelPicker(_levelNumber, LevelGenerator.AuthoredLevelCount,
                 n => $"Level {n}\n{PortSkylines.NameForLevel(n)}",
                 go: n => { SaveData.SetLevelFor(_mode, n); _hud.HidePanels(); StartLevel(n); },
-                back: () => { _hud.HidePanels(); OnPause(); });
+                back: () => { _hud.HidePanels(); ShowTestTools(); });
         }
 
         /// <summary>Rebuilds only the backdrop and harbour (e.g. after changing the sky preview), keeping the level in progress.</summary>

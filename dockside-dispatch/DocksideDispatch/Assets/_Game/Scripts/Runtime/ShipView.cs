@@ -189,6 +189,13 @@ namespace Dockside
 
         public void SetRest(Vector3 pos) { _restPos = pos; _bobbing = true; }
 
+        public override void Park(Vector3 pos)
+        {
+            transform.position = pos;
+            transform.rotation = Quaternion.Euler(Tilt, 0, 0);
+            SetRest(pos);
+        }
+
         private void Update()
         {
             if (!_bobbing) return;

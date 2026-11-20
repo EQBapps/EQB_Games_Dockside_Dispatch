@@ -223,6 +223,7 @@ namespace Dockside.Core
             int berth = BerthFor(containerIndex);
             if (berth < 0 && BufferFree < c.length) return TapResult.NoRoom;
 
+            if (KeepHistory) _history.Push((Clone(), containerIndex));
             RemoveFromYard(containerIndex);
             if (berth >= 0)
             {
@@ -259,30 +260,48 @@ namespace Dockside.Core
             outEvents?.AddRange(_events);
         }
 
-        /// <summary>Booster: shuffle colours among yard containers of the same length. Counts per colour are kept.</summary>
-        public void ShuffleYard(Random rng, List<GameEvent> outEvents = null)
+        // =====================================================================
+        // Undo (booster)
+        // =====================================================================
+        /// <summary>
+        /// When true, every accepted tap saves the state before it, so it can be taken back with Undo. Off by default:
+        /// the solver plays thousands of moves on clones and needs none of it.
+        /// </summary>
+        public bool KeepHistory;
+        private readonly Stack<(GameSession before, int container)> _history = new Stack<(GameSession, int)>();
+
+        /// <summary>A move can be taken back: there is one, and the level has not been won (a loss can be undone).</summary>
+        public bool CanUndo => _history.Count > 0 && !IsWon;
+        public int UndoDepth => _history.Count;
+
+        /// <summary>
+        /// Takes back the last tap and everything it set off (ships leaving and arriving, holding-bay pulls, unlocks),
+        /// so a lost level is in play again. Kept on purpose: holding-bay slots added since (Extra Berth, a second
+        /// chance) and colours already revealed (the player has seen them). Returns the container that went back to
+        /// the yard, or -1 when there is nothing to undo.
+        /// </summary>
+        public int Undo()
         {
             _events.Clear();
-            for (int len = 1; len <= 2; len++)
-            {
-                var idx = new List<int>();
-                var colors = new List<int>();
-                for (int i = 0; i < _inYard.Length; i++)
-                {
-                    if (!_inYard[i] || Level.containers[i].length != len) continue;
-                    idx.Add(i);
-                    colors.Add(Level.containers[i].color);
-                }
-                for (int i = colors.Count - 1; i > 0; i--)
-                {
-                    int j = rng.Next(i + 1);
-                    (colors[i], colors[j]) = (colors[j], colors[i]);
-                }
-                for (int i = 0; i < idx.Count; i++) Level.containers[idx[i]].color = colors[i];
-            }
-            Emit(GameEventType.ReachabilityChanged, -1, -1, -1, -1);
-            CheckEnd();
-            outEvents?.AddRange(_events);
+            if (!CanUndo) return -1;
+            var (s, container) = _history.Pop();
+            _cells = s._cells;
+            _inYard = s._inYard;
+            _locked = s._locked;
+            for (int i = 0; i < _revealed.Length; i++) _revealed[i] |= s._revealed[i];
+            _reachable = s._reachable;
+            _yardCount = s._yardCount;
+            _berthShip = s._berthShip;
+            _berthLoad = s._berthLoad;
+            _nextShip = s._nextShip;
+            _shipsDeparted = s._shipsDeparted;
+            _buffer = s._buffer;
+            BufferCapacity = Math.Max(BufferCapacity, s.BufferCapacity);
+            IsWon = s.IsWon;
+            IsLost = s.IsLost;
+            LoseReason = s.LoseReason;
+            MovesMade = s.MovesMade;
+            return container;
         }
 
         // =====================================================================
@@ -438,7 +457,7 @@ namespace Dockside.Core
         {
             var s = new GameSession
             {
-                Level = Level, // containers' colours only change via ShuffleYard, which the solver never calls
+                Level = Level, // never changes once the session is built, so clones (and undo snapshots) can share it
                 _cells = (int[,])_cells.Clone(),
                 _inYard = (bool[])_inYard.Clone(),
                 _locked = (bool[])_locked.Clone(),
