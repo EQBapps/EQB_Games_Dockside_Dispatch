@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Google AdMob App ID for Dockside Dispatch (Android), required by the Google Mobile Ads SDK that LevelPlay's
+     AdMob adapter brings in: without it the app crashes at launch. AdMob > Apps > Dockside Dispatch > App settings. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.eqbbusiness.docksidedispatch.admobappid">
+    <application>
+        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-4383896231632281~7957059133" />
+    </application>
+</manifest>

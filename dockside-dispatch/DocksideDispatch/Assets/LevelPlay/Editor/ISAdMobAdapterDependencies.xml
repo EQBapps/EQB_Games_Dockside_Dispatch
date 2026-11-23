@@ -1,0 +1,15 @@
+<dependencies>
+  <!-- LevelPlay AdMob adapter 5.38.0.0 (Dependencies-xmls/AdMob/5.38.0.0), ANDROID ONLY for now.
+       The iOS pod (IronSourceAdMobAdapter 5.20.0.0 / Swift package 5.20.0) is left out until there is an iOS AdMob
+       App ID: Google's iOS SDK crashes at launch without GADApplicationIdentifier in Info.plist.
+       The Android App ID is set in Assets/Plugins/Android/AdMobAppId.androidlib (not in LevelPlay's mediation
+       settings, whose single "Enable AdMob" switch would also demand an iOS App ID and stop iOS builds). -->
+  <unityversion>5.38.0.0</unityversion>
+  <androidPackages>
+    <androidPackage spec="com.unity3d.ads-mediation:admob-adapter:5.20.0">
+      <repositories>
+        <repository>https://maven.google.com/</repository>
+      </repositories>
+    </androidPackage>
+  </androidPackages>
+</dependencies>
