@@ -24,6 +24,18 @@ namespace Dockside
         [SerializeField] private string rewardedAdUnitId;
         [SerializeField] private string interstitialAdUnitId;
 
+        [Header("iOS ad unit IDs (the iOS app in LevelPlay); empty = that format is off on iOS")]
+        [SerializeField] private string iosRewardedAdUnitId;
+        [SerializeField] private string iosInterstitialAdUnitId;
+
+#if UNITY_IOS
+        private string RewardedUnit => iosRewardedAdUnitId;
+        private string InterstitialUnit => iosInterstitialAdUnitId;
+#else
+        private string RewardedUnit => rewardedAdUnitId;
+        private string InterstitialUnit => interstitialAdUnitId;
+#endif
+
         [Header("Bid floors in USD (0 = none)")]
         [SerializeField] private double rewardedBidFloor;
         [SerializeField] private double interstitialBidFloor;
@@ -97,13 +109,13 @@ namespace Dockside
             LevelPlayInitializer.Initialized -= CreateAds;
 
             #region Rewarded
-            if (string.IsNullOrEmpty(rewardedAdUnitId))
+            if (string.IsNullOrEmpty(RewardedUnit))
                 Debug.LogWarning("[Ads] No rewarded ad unit ID set; rewarded ads are disabled.");
             else
             {
                 _rewarded = rewardedBidFloor > 0
-                    ? new LevelPlayRewardedAd(rewardedAdUnitId, new LevelPlayRewardedAd.Config.Builder().SetBidFloor(rewardedBidFloor).Build())
-                    : new LevelPlayRewardedAd(rewardedAdUnitId);
+                    ? new LevelPlayRewardedAd(RewardedUnit, new LevelPlayRewardedAd.Config.Builder().SetBidFloor(rewardedBidFloor).Build())
+                    : new LevelPlayRewardedAd(RewardedUnit);
                 _rewarded.OnAdImpressionDataReady += OnImpressionDataReady;   // ILRD (SDK 9.5.0+)
                 _rewarded.OnAdLoaded += OnRewardedLoaded;
                 _rewarded.OnAdLoadFailed += OnRewardedLoadFailed;
@@ -117,13 +129,13 @@ namespace Dockside
             #endregion
 
             #region Interstitial
-            if (string.IsNullOrEmpty(interstitialAdUnitId))
+            if (string.IsNullOrEmpty(InterstitialUnit))
                 Debug.LogWarning("[Ads] No interstitial ad unit ID set; interstitials are disabled.");
             else
             {
                 _interstitial = interstitialBidFloor > 0
-                    ? new LevelPlayInterstitialAd(interstitialAdUnitId, new LevelPlayInterstitialAd.Config.Builder().SetBidFloor(interstitialBidFloor).Build())
-                    : new LevelPlayInterstitialAd(interstitialAdUnitId);
+                    ? new LevelPlayInterstitialAd(InterstitialUnit, new LevelPlayInterstitialAd.Config.Builder().SetBidFloor(interstitialBidFloor).Build())
+                    : new LevelPlayInterstitialAd(InterstitialUnit);
                 _interstitial.OnAdImpressionDataReady += OnImpressionDataReady;   // ILRD (SDK 9.5.0+)
                 _interstitial.OnAdLoaded += OnInterstitialLoaded;
                 _interstitial.OnAdLoadFailed += OnInterstitialLoadFailed;

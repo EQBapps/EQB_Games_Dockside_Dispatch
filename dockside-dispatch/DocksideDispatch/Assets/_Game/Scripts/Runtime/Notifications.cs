@@ -4,13 +4,16 @@ using UnityEngine;
 #if UNITY_ANDROID
 using Unity.Notifications.Android;
 #endif
+#if UNITY_IOS
+using Unity.Notifications.iOS;
+#endif
 
 namespace Dockside
 {
     /// <summary>
     /// Local re-engagement reminders (no server, nothing leaves the device).
-    /// Policy: the player opts in through our own card after an early win (never at first launch); Android 13+ then shows
-    /// the system permission dialog. When the app goes to the background we schedule three reminders, 1, 3 and 7 days out,
+    /// Policy: the player opts in through our own card after an early win (never at first launch); Android 13+ and iOS
+    /// then show the system permission dialog. When the app goes to the background we schedule three reminders, 1, 3 and 7 days out,
     /// moved into 11:00-20:00 local time; opening the app cancels them all. After the 7-day one nothing more is sent.
     /// The player can switch reminders off (or back on) under Pause.
     /// </summary>
@@ -48,6 +51,9 @@ namespace Dockside
             {
 #if UNITY_ANDROID && !UNITY_EDITOR
                 return AndroidNotificationCenter.UserPermissionToPost == PermissionStatus.Allowed;
+#elif UNITY_IOS && !UNITY_EDITOR
+                var status = iOSNotificationCenter.GetNotificationSettings().AuthorizationStatus;
+                return status == AuthorizationStatus.Authorized || status == AuthorizationStatus.Provisional || status == AuthorizationStatus.Ephemeral;
 #else
                 return true;   // editor: behave as if granted so the flow can be tested
 #endif
@@ -63,6 +69,8 @@ namespace Dockside
             {
 #if UNITY_ANDROID && !UNITY_EDITOR
                 return AndroidNotificationCenter.UserPermissionToPost == PermissionStatus.NotificationsBlockedForApp;
+#elif UNITY_IOS && !UNITY_EDITOR
+                return iOSNotificationCenter.GetNotificationSettings().AuthorizationStatus == AuthorizationStatus.Denied;
 #else
                 return false;
 #endif
@@ -93,6 +101,18 @@ namespace Dockside
                 PlayerPrefs.Save();
                 Analytics.Event("notification_open", ("reminder", intent.Notification.IntentData ?? ""));
             }
+#elif UNITY_IOS && !UNITY_EDITOR
+            iOSNotificationCenter.RemoveAllScheduledNotifications();
+            iOSNotificationCenter.RemoveAllDeliveredNotifications();
+#pragma warning disable CS0618   // the synchronous call is enough here: a reminder that opened the app is already known at launch
+            var opened = iOSNotificationCenter.GetLastRespondedNotification();
+#pragma warning restore CS0618
+            if (opened != null && opened.Identifier != PlayerPrefs.GetString(LastOpenKey + ".ios", ""))
+            {
+                PlayerPrefs.SetString(LastOpenKey + ".ios", opened.Identifier);
+                PlayerPrefs.Save();
+                Analytics.Event("notification_open", ("reminder", opened.Data ?? ""));
+            }
 #endif
         }
 
@@ -116,6 +136,8 @@ namespace Dockside
                     ShouldAutoCancel = true,
                 };
                 AndroidNotificationCenter.SendNotification(n, ChannelId);
+#elif UNITY_IOS && !UNITY_EDITOR
+                iOSNotificationCenter.ScheduleNotification(IosReminder($"{tag}.{now.Ticks}", title, text, tag, fire - now));
 #else
                 Debug.Log($"[Dockside] Reminder '{tag}' at {fire:ddd dd MMM HH:mm}: {title} / {text}");
 #endif
@@ -161,6 +183,13 @@ namespace Dockside
             while (request.Status == PermissionStatus.RequestPending) yield return null;
             Analytics.Event("notification_permission", ("status", request.Status.ToString()));
             done(request.Status == PermissionStatus.Allowed);
+#elif UNITY_IOS && !UNITY_EDITOR
+            using (var request = new AuthorizationRequest(AuthorizationOption.Alert | AuthorizationOption.Sound, false))
+            {
+                while (!request.IsFinished) yield return null;
+                Analytics.Event("notification_permission", ("status", request.Granted ? "Allowed" : "Denied"));
+                done(request.Granted);
+            }
 #else
             yield return null;
             done(true);
@@ -177,6 +206,8 @@ namespace Dockside
             {
                 SmallIcon = SmallIcon, LargeIcon = LargeIcon, IntentData = "test", ShouldAutoCancel = true,
             }, ChannelId);
+#elif UNITY_IOS && !UNITY_EDITOR
+            iOSNotificationCenter.ScheduleNotification(IosReminder("test", title, text, "test", TimeSpan.FromMinutes(1)));
 #else
             Debug.Log($"[Dockside] Test reminder in 1 minute: {title} / {text}");
 #endif
@@ -187,7 +218,26 @@ namespace Dockside
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             if (AndroidNotificationCenter.Initialize()) AndroidNotificationCenter.OpenNotificationSettings();
+#elif UNITY_IOS && !UNITY_EDITOR
+            iOSNotificationCenter.OpenNotificationSettings();
 #endif
         }
+
+#if UNITY_IOS && !UNITY_EDITOR
+        /// <summary>A one-off local reminder that fires after <paramref name="delay"/> (only shown while the game is closed).</summary>
+        private static iOSNotification IosReminder(string id, string title, string text, string tag, TimeSpan delay) => new iOSNotification
+        {
+            Identifier = id,
+            Title = title,
+            Body = text,
+            Data = tag,
+            ShowInForeground = false,
+            Trigger = new iOSNotificationTimeIntervalTrigger
+            {
+                TimeInterval = delay < TimeSpan.FromMinutes(1) ? TimeSpan.FromMinutes(1) : delay,
+                Repeats = false,
+            },
+        };
+#endif
     }
 }

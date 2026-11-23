@@ -25,6 +25,16 @@ namespace Dockside.EditorTools
         // GameAnalytics (gameanalytics.com > game settings > Setup). Empty = analytics only logs to the console.
         public const string GameAnalyticsGameKey = "8b5026d7d4b8c8993a6e8a5c9581cbd1";
         public const string GameAnalyticsSecretKey = "c68e14d9948e2d9f7b6eae5c460145441e530a30";
+
+        // iOS: a separate app in LevelPlay and a separate platform in GameAnalytics. Fill these in, then run
+        // Dockside > Apply Ad Keys (writes the LevelPlay ones into the Main scene) and Dockside > Configure GameAnalytics.
+        public const string LevelPlayIosAppKey = "29cb3d485"; // LevelPlay dashboard > Apps > Dockside Dispatch (iOS)
+        public const string IosRewardedAdUnitId = "2sdl7sp3edymqe1b";      // LevelPlay dashboard > Ad units (iOS): iOS_DD2
+        public const string IosInterstitialAdUnitId = "as7cwb9vtocz4gpt";  // iOS_DD1
+        public const string GameAnalyticsIosGameKey = "3b656a7e24cb5603c6d3e2b7f2cf7a56";     // GameAnalytics > iOS platform > Setup
+        public const string GameAnalyticsIosSecretKey = "941159c76cd2a97bad8063caff220c2c5c39e9ea";
+        public const string AppleTeamId = "";                 // developer.apple.com > Membership (10 characters); or set it in Xcode
+        public const string IosMinimumVersion = "15.0";
         private const string GameAnalyticsSettingsPath = "Assets/Resources/GameAnalytics/Settings.asset";   // where the SDK looks
         private const string Root = "Assets/_Game";
         private const string ScenePath = Root + "/Scenes/Main.unity";
@@ -214,11 +224,68 @@ namespace Dockside.EditorTools
                 settings.UpdateGameKey(i, GameAnalyticsGameKey);
                 settings.UpdateSecretKey(i, GameAnalyticsSecretKey);
             }
+            if (!string.IsNullOrEmpty(GameAnalyticsIosGameKey) && !string.IsNullOrEmpty(GameAnalyticsIosSecretKey))
+            {
+                if (!settings.Platforms.Contains(RuntimePlatform.IPhonePlayer)) settings.AddPlatform(RuntimePlatform.IPhonePlayer);
+                int ios = settings.Platforms.IndexOf(RuntimePlatform.IPhonePlayer);
+                settings.UpdateGameKey(ios, GameAnalyticsIosGameKey);
+                settings.UpdateSecretKey(ios, GameAnalyticsIosSecretKey);
+            }
             // Resource events (coins earned/spent) must use currencies and item types declared up front.
             settings.ResourceCurrencies = new System.Collections.Generic.List<string> { "coins" };
             settings.ResourceItemTypes = new System.Collections.Generic.List<string> { "level_reward", "booster", "continue" };
             EditorUtility.SetDirty(settings);
-            Debug.Log($"[Dockside] GameAnalytics: Android platform {(string.IsNullOrEmpty(GameAnalyticsGameKey) ? "added, keys not set yet" : "configured")}.");
+            Debug.Log($"[Dockside] GameAnalytics: Android platform {(string.IsNullOrEmpty(GameAnalyticsGameKey) ? "added, keys not set yet" : "configured")}, " +
+                      $"iOS platform {(string.IsNullOrEmpty(GameAnalyticsIosGameKey) ? "not set yet" : "configured")}.");
+        }
+
+        /// <summary>
+        /// iOS player settings for the App Store: iPhone only, iOS 15+, IL2CPP arm64, automatic signing, portrait, status bar
+        /// hidden, and the home indicator needing a second swipe so the booster bar at the bottom isn't swiped away mid-level.
+        /// The build number follows the Android version code, so both stores carry the same number for a release.
+        /// </summary>
+        [MenuItem("Dockside/Configure iOS")]
+        public static void ConfigureIos()
+        {
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, BundleId);
+            PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneOnly;
+            PlayerSettings.iOS.targetOSVersionString = IosMinimumVersion;
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS, ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetArchitecture(NamedBuildTarget.iOS, 1);   // arm64
+            PlayerSettings.iOS.buildNumber = PlayerSettings.Android.bundleVersionCode.ToString();
+            PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+            if (!string.IsNullOrEmpty(AppleTeamId)) PlayerSettings.iOS.appleDeveloperTeamID = AppleTeamId;
+            PlayerSettings.iOS.requiresFullScreen = true;
+            PlayerSettings.iOS.hideHomeButton = false;
+            PlayerSettings.iOS.deferSystemGesturesMode = UnityEngine.iOS.SystemGestureDeferMode.BottomEdge;
+            PlayerSettings.statusBarHidden = true;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[Dockside] iOS: {BundleId} {PlayerSettings.bundleVersion} ({PlayerSettings.iOS.buildNumber}), iPhone only, iOS {IosMinimumVersion}+, " +
+                      $"team {(string.IsNullOrEmpty(PlayerSettings.iOS.appleDeveloperTeamID) ? "not set (pick it in Xcode)" : PlayerSettings.iOS.appleDeveloperTeamID)}.");
+        }
+
+        /// <summary>Writes the LevelPlay app keys and ad unit IDs (both platforms) into the Main scene's Game object.</summary>
+        [MenuItem("Dockside/Apply Ad Keys")]
+        public static void ApplyAdKeys()
+        {
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            var init = Object.FindFirstObjectByType<LevelPlayInitializer>();
+            var ads = Object.FindFirstObjectByType<AdManager>();
+            if (init == null || ads == null) { Debug.LogError("[Dockside] Main scene has no LevelPlayInitializer/AdManager."); return; }
+            var so = new SerializedObject(init);
+            so.FindProperty("appKey").stringValue = LevelPlayAppKey;
+            so.FindProperty("iosAppKey").stringValue = LevelPlayIosAppKey;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            var am = new SerializedObject(ads);
+            am.FindProperty("rewardedAdUnitId").stringValue = RewardedAdUnitId;
+            am.FindProperty("interstitialAdUnitId").stringValue = InterstitialAdUnitId;
+            am.FindProperty("iosRewardedAdUnitId").stringValue = IosRewardedAdUnitId;
+            am.FindProperty("iosInterstitialAdUnitId").stringValue = IosInterstitialAdUnitId;
+            am.ApplyModifiedPropertiesWithoutUndo();
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log($"[Dockside] Ad keys applied. iOS app key {(string.IsNullOrEmpty(LevelPlayIosAppKey) ? "not set: ads stay off on iOS" : "set")}.");
         }
 
         /// <summary>

@@ -13,6 +13,8 @@ namespace Dockside.EditorTools
     /// Output: Builds/Android/DocksideDispatch-&lt;version&gt;-&lt;build&gt;.apk (debug-signed, for sideloading onto test phones).
     /// Play Store: Dockside > Build Play Store AAB (batch: -executeMethod Dockside.EditorTools.BuildTools.BuildPlayStoreAab), signed with the
     /// upload key described by a properties file outside the repo (see <see cref="SigningFile"/>).
+    /// App Store: Dockside > Build iOS (Xcode project), run on the Mac with the project's platform set to iOS
+    /// (batch: -buildTarget iOS -executeMethod Dockside.EditorTools.BuildTools.BuildIos). See dockside-dispatch/BUILD_IOS.md.
     /// </summary>
     public static class BuildTools
     {
@@ -30,6 +32,42 @@ namespace Dockside.EditorTools
         /// <summary>Signed app bundle for Google Play (upload key; Play App Signing re-signs it for players).</summary>
         [MenuItem("Dockside/Build Play Store AAB")]
         public static void BuildPlayStoreAab() => Build(false, store: true);
+
+        /// <summary>
+        /// The Xcode project for the App Store, in Builds/iOS/DocksideDispatch-&lt;version&gt;-&lt;build&gt;. Archive and upload it from Xcode.
+        /// The iOS build steps (IosPostProcess, and the ad and analytics SDKs' own) only load while the platform is iOS,
+        /// so from another platform this switches first and asks to be run again.
+        /// </summary>
+        [MenuItem("Dockside/Build iOS (Xcode project)")]
+        public static void BuildIos()
+        {
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS)
+            {
+                EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
+                Debug.LogWarning("[Dockside] Switched the project to iOS. When it has finished compiling, run Dockside > Build iOS (Xcode project) again.");
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                return;
+            }
+            ProjectSetup.ConfigureSplash();
+            ProjectSetup.ConfigureNotifications();
+            ProjectSetup.ConfigureMobileRendering();
+            ProjectSetup.ConfigureIos();
+
+            string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "iOS",
+                $"DocksideDispatch-{PlayerSettings.bundleVersion}-{PlayerSettings.iOS.buildNumber}"));
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { "Assets/_Game/Scenes/Main.unity" },
+                locationPathName = dir,
+                target = BuildTarget.iOS,
+                targetGroup = BuildTargetGroup.iOS,
+                options = BuildOptions.None,
+            });
+            var s = report.summary;
+            Debug.Log($"[Dockside] iOS build {s.result}: {dir} in {s.totalTime:mm\\:ss}, {s.totalErrors} errors, {s.totalWarnings} warnings. " +
+                      "Next: pod install if needed, then open Unity-iPhone.xcworkspace in Xcode and Product > Archive.");
+            Finish(s.result == BuildResult.Succeeded, true);
+        }
 
         /// <summary>
         /// Upload-key properties file (storeFile, keyAlias, storePassword, keyPassword). Never committed: lives next to the keystore,

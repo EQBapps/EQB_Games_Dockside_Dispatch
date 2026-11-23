@@ -152,6 +152,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Dockside.Runtime::Dockside.AdManager
   rewardedAdUnitId: hrowdp60uf3dioyo
   interstitialAdUnitId: 0bssvtrl84y2qzmb
+  iosRewardedAdUnitId: 2sdl7sp3edymqe1b
+  iosInterstitialAdUnitId: as7cwb9vtocz4gpt
   rewardedBidFloor: 0
   interstitialBidFloor: 0
 --- !u!114 &84250388
@@ -167,6 +169,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Dockside.Runtime::Dockside.LevelPlayInitializer
   appKey: 29a53b4f5
+  iosAppKey: 29cb3d485
 --- !u!114 &84250389
 MonoBehaviour:
   m_ObjectHideFlags: 0

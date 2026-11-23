@@ -8,6 +8,7 @@
         "Unity.LevelPlay",
         "GameAnalyticsSDK",
         "Unity.Notifications.Android",
+        "Unity.Notifications.iOS",
         "Google.Play.Games"
     ],
     "includePlatforms": [],

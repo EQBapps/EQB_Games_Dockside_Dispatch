@@ -5,11 +5,21 @@ using UnityEngine;
 using GooglePlayGames;
 using GooglePlayGames.BasicApi;
 #endif
+#if UNITY_IOS && !UNITY_EDITOR
+using UnityEngine.SocialPlatforms.GameCenter;
+#endif
+
+// Game Center goes through Unity's Social API, deprecated in Unity 6 but still working. When Unity removes it, move to
+// Apple's GameKit plugin for Unity (github.com/apple/unityplugins).
+#pragma warning disable CS0618
 
 namespace Dockside
 {
     /// <summary>
-    /// Google Play Games: automatic sign-in and achievements. Play never blocks the game: if sign-in fails or the player
+    /// Achievements through the platform's game service: Google Play Games on Android, Game Center on iOS.
+    /// Both sign in automatically and use the same achievements; on iOS each Play Games ID maps to a Game Center ID
+    /// (<see cref="GameCenterIds"/>, created in App Store Connect).
+    /// The service never blocks the game: if sign-in fails or the player
     /// declines, everything works as before and progress is still counted on the device.
     /// Progress is kept locally (PlayerPrefs) and pushed idempotently (unlock / SetStepsAtLeast), so anything earned while
     /// signed out or offline is sent the next time the player is signed in, and existing players get credit for the levels
@@ -21,6 +31,37 @@ namespace Dockside
         public const int CleanSheetFromLevel = 20, LastPortLevel = 96;   // the 20th port starts at level 96
 
         public static bool SignedIn { get; private set; }
+
+        /// <summary>What players call the service, for messages ("Couldn't sign in to Game Center").</summary>
+#if UNITY_IOS
+        public const string ServiceName = "Game Center";
+        public const string SignInHint = "Sign in under Settings > Game Center";
+#else
+        public const string ServiceName = "Play Games";
+        public const string SignInHint = "Check your connection and try again";
+#endif
+
+        /// <summary>Game Center achievement IDs (App Store Connect > Game Center), keyed by the Play Games IDs used in the code.</summary>
+        public static readonly System.Collections.Generic.Dictionary<string, string> GameCenterIds = new System.Collections.Generic.Dictionary<string, string>
+        {
+            { GPGSIds.achievement_first_dispatch, "dockside.first_dispatch" },
+            { GPGSIds.achievement_harbour_hand, "dockside.harbour_hand" },
+            { GPGSIds.achievement_dock_master, "dockside.dock_master" },
+            { GPGSIds.achievement_harbour_legend, "dockside.harbour_legend" },
+            { GPGSIds.achievement_change_of_shift, "dockside.change_of_shift" },
+            { GPGSIds.achievement_yard_boss, "dockside.yard_boss" },
+            { GPGSIds.achievement_unload_legend, "dockside.unload_legend" },
+            { GPGSIds.achievement_around_the_world, "dockside.around_the_world" },
+            { GPGSIds.achievement_clean_sheet, "dockside.clean_sheet" },
+            { GPGSIds.achievement_comeback_captain, "dockside.comeback_captain" },
+            { GPGSIds.achievement_night_shift, "dockside.night_shift" },
+            { GPGSIds.achievement_crane_operator, "dockside.crane_operator" },
+            { GPGSIds.achievement_key_holder, "dockside.key_holder" },
+            { GPGSIds.achievement_mystery_solved, "dockside.mystery_solved" },
+            { GPGSIds.achievement_long_haul, "dockside.long_haul" },
+            { GPGSIds.achievement_fleet_commander, "dockside.fleet_commander" },
+            { GPGSIds.achievement_convoy_leader, "dockside.convoy_leader" },
+        };
 
         // Incremental achievements: local counter -> achievement id and steps.
         private static readonly (string stat, string id, int steps)[] Counters =
@@ -42,6 +83,15 @@ namespace Dockside
             PlayGamesPlatform.DebugLogEnabled = Debug.isDebugBuild;
             PlayGamesPlatform.Activate();
             PlayGamesPlatform.Instance.Authenticate(OnSignIn);
+#elif UNITY_IOS && !UNITY_EDITOR
+            // Game Center shows its own "Welcome back" banner, or its sign-in sheet once per launch.
+            GameCenterPlatform.ShowDefaultAchievementCompletionBanner(true);
+            Social.localUser.Authenticate(ok =>
+            {
+                SignedIn = ok;
+                Analytics.Event("gamecenter_signin", ("status", ok ? "Success" : "Failed"));
+                if (SignedIn) SyncAll();
+            });
 #else
             Debug.Log("[Dockside] Play Games: editor, sign-in skipped (achievements are only counted locally).");
 #endif
@@ -56,7 +106,11 @@ namespace Dockside
         }
 #endif
 
-        /// <summary>Pause > Achievements: shows Play's list, signing in first if the automatic sign-in didn't happen.</summary>
+        /// <summary>
+        /// Pause > Achievements: shows the platform's list. Android signs in first if the automatic sign-in didn't happen;
+        /// iOS can't show Game Center's sign-in again in the same launch, so it reports failure and the player is pointed
+        /// to Settings.
+        /// </summary>
         public static void ShowAchievements(Action<bool> signInFailed = null)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -67,6 +121,9 @@ namespace Dockside
                 if (SignedIn) PlayGamesPlatform.Instance.ShowAchievementsUI();
                 else signInFailed?.Invoke(true);
             });
+#elif UNITY_IOS && !UNITY_EDITOR
+            if (SignedIn && Social.localUser.authenticated) Social.ShowAchievementsUI();
+            else signInFailed?.Invoke(true);
 #else
             Debug.Log("[Dockside] Play Games: achievements UI (device only). Earned: " + string.Join(", ", EarnedNames()));
             signInFailed?.Invoke(false);
@@ -152,6 +209,8 @@ namespace Dockside
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             if (SignedIn) PlayGamesPlatform.Instance.UnlockAchievement(id);
+#elif UNITY_IOS && !UNITY_EDITOR
+            if (SignedIn && GameCenterIds.TryGetValue(id, out var gc)) Social.ReportProgress(gc, 100.0, _ => { });
 #endif
         }
 
@@ -159,6 +218,11 @@ namespace Dockside
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             if (SignedIn && steps > 0) PlayGamesPlatform.Instance.SetStepsAtLeast(id, steps, _ => { });
+#elif UNITY_IOS && !UNITY_EDITOR
+            // Game Center counts in percent and never lowers progress, so re-sending a total is safe.
+            if (!SignedIn || steps <= 0 || !GameCenterIds.TryGetValue(id, out var gc)) return;
+            foreach (var c in Counters)
+                if (c.id == id) Social.ReportProgress(gc, Math.Min(100.0, steps * 100.0 / c.steps), _ => { });
 #endif
         }
     }

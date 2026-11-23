@@ -3,7 +3,8 @@ using UnityEngine;
 namespace Dockside
 {
     /// <summary>
-    /// Honours Android's "Remove animations" accessibility setting (animator duration scale 0): tutorial demos then
+    /// Honours Android's "Remove animations" accessibility setting (animator duration scale 0) and iOS's
+    /// Reduce Motion: tutorial demos then
     /// play once and hold their last frame, and cards appear without a scale-in. Test override: PlayerPrefs
     /// "dd.debug.reducedMotion" = 1.
     /// </summary>
@@ -41,6 +42,8 @@ namespace Dockside
             {
                 return false;
             }
+#elif UNITY_IOS && !UNITY_EDITOR
+            return IosNative.ReduceMotion();
 #else
             return false;
 #endif

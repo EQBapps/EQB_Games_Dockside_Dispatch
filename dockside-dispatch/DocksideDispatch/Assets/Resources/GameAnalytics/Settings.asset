@@ -14,20 +14,26 @@ MonoBehaviour:
   m_EditorClassIdentifier: GameAnalyticsSDK::GameAnalyticsSDK.Setup.Settings
   gameKey:
   - 8b5026d7d4b8c8993a6e8a5c9581cbd1
+  - 3b656a7e24cb5603c6d3e2b7f2cf7a56
   secretKey:
   - c68e14d9948e2d9f7b6eae5c460145441e530a30
+  - 941159c76cd2a97bad8063caff220c2c5c39e9ea
   Build:
+  - 0.1
   - 0.1
   SelectedPlatformOrganization:
   - 
+  - 
   SelectedPlatformStudio:
+  - 
   - 
   SelectedPlatformGame:
   - 
-  SelectedPlatformGameID: ffffffff
-  SelectedOrganization: 00000000
-  SelectedStudio: 00000000
-  SelectedGame: 00000000
+  - 
+  SelectedPlatformGameID: ffffffffffffffff
+  SelectedOrganization: 0000000000000000
+  SelectedStudio: 0000000000000000
+  SelectedGame: 0000000000000000
   NewVersion: 
   Changes: 
   StudioName: 
@@ -47,9 +53,9 @@ MonoBehaviour:
   ResourceCurrencies:
   - coins
   LastCreatedGamePlatform: 0
-  Platforms: 0b000000
+  Platforms: 0b00000008000000
   UsePlayerSettingsBuildNumber: 0
-  BuildNumberAutoDetect: 01
+  BuildNumberAutoDetect: 0101
   SubmitErrors: 1
   NativeErrorReporting: 0
   MaxErrorCount: 10

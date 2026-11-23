@@ -999,7 +999,7 @@ namespace Dockside
                 achievements: () =>
                 {
                     _hud.HidePanels();
-                    GameServices.ShowAchievements(failed => _hud.Banner("Couldn't sign in to Play Games", "Check your connection and try again"));
+                    GameServices.ShowAchievements(failed => _hud.Banner($"Couldn't sign in to {GameServices.ServiceName}", GameServices.SignInHint));
                 },
                 privacy: ShowPrivacy,
                 restart: () => StartLevel(_levelNumber),
