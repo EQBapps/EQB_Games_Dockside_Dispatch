@@ -1,0 +1,57 @@
+# nginx site for https://games.eqbsolutions.com (EQB Games landing page).
+# Installed as /etc/nginx/sites-available/games.eqbsolutions.com; files live in /var/www/games.eqbsolutions.com.
+# This is the live copy, including the 443 listener and HTTP->HTTPS redirect that certbot --nginx added.
+server {
+    server_name games.eqbsolutions.com;
+
+    root /var/www/games.eqbsolutions.com;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Fonts and images rarely change; the page itself is revalidated hourly.
+    location /assets/ {
+        expires 30d;
+        access_log off;
+    }
+    location = /index.html {
+        expires 1h;
+    }
+
+    # Same app-ads.txt as eqbsolutions.com, in case the Play listing ever points here.
+    location = /app-ads.txt {
+        alias /var/www/eqbsolutions.com/app-ads.txt;
+        default_type text/plain;
+    }
+
+    add_header X-Frame-Options         "SAMEORIGIN"   always;
+    add_header X-Content-Type-Options  "nosniff"      always;
+    add_header Referrer-Policy         "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy      "camera=(), microphone=(), geolocation=()" always;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript image/svg+xml;
+    gzip_min_length 1024;
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/games.eqbsolutions.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/games.eqbsolutions.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+server {
+    if ($host = games.eqbsolutions.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    server_name games.eqbsolutions.com;
+    return 404; # managed by Certbot
+
+
+}

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EQB Games</title>
+<meta name="description" content="EQB Games makes cosy puzzle games for phones. Our first game, Dockside Dispatch, is out now on Google Play.">
+<link rel="canonical" href="https://games.eqbsolutions.com/">
+<meta name="theme-color" content="#1c1246">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="EQB Games">
+<meta property="og:title" content="EQB Games: cosy puzzle games for your phone">
+<meta property="og:description" content="Our first game, Dockside Dispatch, is out now on Google Play. Sort containers, fill the ships, keep the harbour moving.">
+<meta property="og:url" content="https://games.eqbsolutions.com/">
+<meta property="og:image" content="https://games.eqbsolutions.com/assets/img/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/icon-32.png">
+<link rel="apple-touch-icon" href="/assets/img/icon-180.png">
+<link rel="preload" href="/assets/fonts/fredoka-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/figtree-var.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* Layout idea: the studio at night (the indigo of the EQB letters), with one warm golden-hour window
+   where a tiny harbour can be played. Everything else stays quiet so that window glows. */
+:root {
+  --night: #1c1246;      /* page: the EQB letters */
+  --deck: #271a5e;       /* raised panels */
+  --ink: #f7f2ff;        /* text */
+  --muted: #c3b9e6;      /* secondary text */
+  --ribbon: #ec4aa0;     /* the logo's ribbons: one accent, used sparingly */
+  --tide: #3fd8ca;       /* the logo's GAMES: links and focus */
+  --line: rgba(195, 185, 230, 0.18);
+  --display: "Fredoka", "Baloo 2", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
+  --body: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Dockside Dispatch, straight from the game's palette */
+  --c-red: #e8463f; --c-blue: #2f7fe0; --c-yellow: #f7c431;
+  --sky-top: #ff9e6d; --sky-bottom: #ffe0a8; --water: #1f8c8e; --water-hi: #8fd6cf;
+  --quay: #e9c08e; --quay-edge: #c48f5c; --yard: #6e5d57; --yard-line: #e8c25a; --cream: #fff4e2; --brown: #3a2e2b;
+  /* type scale */
+  --t-sm: 0.875rem; --t-base: 1.0625rem; --t-lg: 1.25rem; --t-xl: 1.625rem; --t-2xl: clamp(1.9rem, 1.4rem + 2vw, 2.6rem);
+  --t-hero: clamp(2.5rem, 1.6rem + 4.2vw, 4.4rem);
+  color-scheme: dark;
+}
+@font-face { font-family: "Fredoka"; src: url("/assets/fonts/fredoka-var.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
+@font-face { font-family: "Figtree"; src: url("/assets/fonts/figtree-var.woff2") format("woff2"); font-weight: 300 900; font-display: swap; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--night); color: var(--ink); font: 400 var(--t-base)/1.6 var(--body); }
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--tide); text-underline-offset: 0.2em; }
+a:hover { color: var(--ink); }
+:focus-visible { outline: 3px solid var(--tide); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.1; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.wrap { width: min(1160px, 100% - 2.5rem); margin-inline: auto; }
+.skip { position: absolute; left: -999px; top: 0; background: var(--ink); color: var(--night); padding: 0.5rem 1rem; z-index: 10; }
+.skip:focus { left: 1rem; top: 1rem; }
+
+/* ---------- header ---------- */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.1rem; }
+.top img { width: auto; height: clamp(72px, 6vw + 40px, 96px); }
+.top nav { display: flex; gap: clamp(0.9rem, 3vw, 2rem); flex-wrap: wrap; }
+.top nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: var(--t-sm); letter-spacing: 0.02em; }
+.top nav a:hover { color: var(--ink); }
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; padding-block: clamp(1.5rem, 5vw, 4rem) clamp(3rem, 7vw, 6rem); }
+@media (min-width: 920px) { .hero { grid-template-columns: 1.05fr 1fr; } }
+.hero h1 {
+  font-size: var(--t-hero); font-weight: 700; letter-spacing: -0.01em;
+  /* the sticker lettering of the EQB logo: a chunky magenta drop under bright type */
+  text-shadow: 0 0.06em 0 var(--ribbon);
+}
+.hero .lede { margin-top: 1.4rem; font-size: var(--t-lg); color: var(--muted); max-width: 34ch; }
+.hero .lede strong { color: var(--ink); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.5rem; margin-top: 2rem; }
+.badge img { height: 56px; width: auto; }
+.textlink { font-weight: 600; }
+
+/* ---------- the playable harbour ---------- */
+.toy { border-radius: 28px; overflow: hidden; background: var(--cream); color: var(--brown); box-shadow: 0 0 0 1px rgba(255,224,168,0.25), 0 30px 80px -20px rgba(255, 158, 109, 0.35); }
+.toy-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem 0.85rem; background: var(--cream); }
+.toy-head h2 { font-size: var(--t-xl); color: var(--brown); }
+.toy-head .count { font-family: var(--display); font-weight: 600; font-variant-numeric: tabular-nums; color: #7a6560; white-space: nowrap; }
+.sea { position: relative; padding: 1.1rem 0.75rem 0.9rem; background: linear-gradient(var(--sky-top), var(--sky-bottom) 34%, var(--water) 34.5%, var(--water)); }
+.sea::after { /* glints on the water */ content: ""; position: absolute; inset: 40% 8% 10%; background: radial-gradient(ellipse 30% 8% at 30% 40%, rgba(143,214,207,0.55), transparent 70%), radial-gradient(ellipse 24% 6% at 72% 70%, rgba(143,214,207,0.45), transparent 70%); pointer-events: none; }
+.berths { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; min-height: 96px; }
+.berth { display: flex; justify-content: center; align-items: flex-end; overflow: hidden; }
+.ship { width: min(100%, 190px); display: grid; gap: 4px; justify-items: center; }
+.ship .cabin { width: 22%; height: 18px; margin-left: -48%; background: #fff; border-radius: 4px 4px 0 0; box-shadow: inset 0 -5px 0 #5bb8d9; }
+.hull { width: 100%; padding: 6px 8px 18px; border-radius: 10px 10px 40px 40px / 10px 10px 26px 26px; background: var(--hull); display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; position: relative; }
+.hull::before { content: ""; position: absolute; inset: 4px 6px 16px; border-radius: 6px; background: var(--cream); }
+.hold { position: relative; aspect-ratio: 1.25; border: 2px dashed rgba(58,46,43,0.22); border-radius: 5px; }
+.hull .tag { position: absolute; left: 50%; bottom: 1px; translate: -50% 0; font: 600 0.8rem/1 var(--display); color: #fff; display: flex; gap: 4px; align-items: center; font-variant-numeric: tabular-nums; }
+.hull .tag svg { width: 10px; height: 10px; }
+.ship.sail { animation: sail 0.7s ease-in forwards; }
+.ship.dock { animation: dock 0.6s ease-out; }
+@keyframes sail { to { transform: translateX(130%); opacity: 0; } }
+@keyframes dock { from { transform: translateX(-130%); } }
+.waiting { position: relative; z-index: 1; margin-top: 0.6rem; font: 500 var(--t-sm)/1.3 var(--body); color: #e9fbf8; text-align: center; min-height: 1.3em; }
+
+.quay { background: var(--quay); border-top: 4px solid var(--quay-edge); padding: 0.6rem 0.9rem 0.7rem; }
+.quay .label { font: 600 0.75rem/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: #7a5a3a; text-align: center; margin-bottom: 0.45rem; font-variant-numeric: tabular-nums; }
+.bay { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; width: min(100%, 260px); margin-inline: auto; }
+.bay .slot { aspect-ratio: 1.25; border: 2px dashed rgba(122,90,58,0.45); border-radius: 7px; position: relative; }
+
+.yard { background: var(--yard); padding: 0.75rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; border-inline: 6px solid #5b4c47; }
+.col { display: grid; grid-template-rows: repeat(3, auto); gap: 0.45rem; padding-inline: 0.35rem; border-inline: 2px solid var(--yard-line); }
+.cell { aspect-ratio: 1.25; position: relative; }
+.box { position: absolute; inset: 0; border: 0; border-radius: 7px; background: var(--c, #999); display: grid; place-items: center; cursor: pointer;
+  background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.12) 0 2px, transparent 2px 9px); box-shadow: inset 0 -5px 0 rgba(0,0,0,0.2); }
+.box svg { width: 34%; height: auto; }
+.box:disabled { cursor: default; filter: saturate(0.75) brightness(0.82); }
+.box:not(:disabled):hover { translate: 0 -3px; }
+.box.small svg { width: 40%; }
+.toy-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1rem; padding: 0.9rem 1.25rem 1.1rem; background: var(--cream); }
+.toy-foot .msg { font-weight: 500; font-size: var(--t-sm); color: #5c4a45; max-width: 36ch; }
+.toy-foot button { font: 600 var(--t-sm)/1 var(--body); color: var(--brown); background: transparent; border: 2px solid rgba(58,46,43,0.3); border-radius: 999px; padding: 0.55rem 1rem; cursor: pointer; }
+.toy-foot button:hover { border-color: var(--brown); }
+
+/* ---------- sections ---------- */
+section { padding-block: clamp(3rem, 7vw, 6rem); border-top: 1px solid var(--line); }
+.kicker { font: 600 var(--t-sm)/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--tide); margin-bottom: 0.9rem; }
+section h2 { font-size: var(--t-2xl); }
+
+.game-head { display: flex; align-items: center; gap: 1.1rem; }
+.game-head img { width: 76px; height: 76px; border-radius: 18px; }
+.banner { margin-top: 2rem; border-radius: 22px; overflow: hidden; aspect-ratio: 1024 / 500; }
+.banner img { width: 100%; height: 100%; object-fit: cover; }
+.game-body { display: grid; grid-template-columns: 1fr; gap: 2.5rem; margin-top: 2.5rem; }
+@media (min-width: 880px) { .game-body { grid-template-columns: 1.15fr 1fr; } }
+.copy { display: grid; gap: 1.1rem; max-width: 62ch; color: var(--muted); }
+.copy strong { color: var(--ink); font-weight: 600; }
+.copy h3 { font-size: var(--t-lg); color: var(--ink); margin-top: 0.6rem; }
+.copy h3 + p { margin-top: -0.7rem; }
+
+/* the cargo manifest: the game's facts, set like a shipping document */
+.manifest { background: var(--deck); border-radius: 18px; padding: 1.4rem 1.5rem 1.6rem; align-self: start; }
+.manifest h3 { font-size: var(--t-lg); display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; }
+.manifest h3 span { font: 500 var(--t-sm)/1 var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
+.manifest dl { margin: 1rem 0 1.4rem; display: grid; grid-template-columns: auto 1fr; }
+.manifest dt, .manifest dd { margin: 0; padding: 0.6rem 0; border-top: 1px dashed var(--line); }
+.manifest dt { color: var(--muted); font-size: var(--t-sm); padding-right: 1.2rem; padding-top: 0.75rem; }
+.manifest dd { font-variant-numeric: tabular-nums; }
+.manifest dd b { font-family: var(--display); font-weight: 600; font-size: var(--t-lg); }
+
+.shots { margin-top: 3rem; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 230px); gap: 1.1rem; overflow-x: auto; padding-bottom: 1rem; scroll-snap-type: x mandatory; scrollbar-color: var(--line) transparent; }
+.shots figure { margin: 0; scroll-snap-align: start; }
+.shots img { border-radius: 18px; aspect-ratio: 9 / 16; width: 100%; object-fit: cover; background: var(--deck); }
+.shots figcaption { margin-top: 0.6rem; font-size: var(--t-sm); color: var(--muted); }
+.shots figcaption b { color: var(--ink); font-weight: 600; }
+
+.route { margin-top: 2.5rem; }
+.route h3 { font-size: var(--t-lg); }
+.route p { color: var(--muted); margin-top: 0.4rem; }
+.route ol { list-style: none; padding: 0; margin: 1.1rem 0 0; display: flex; flex-wrap: wrap; gap: 0.5rem 0.4rem; counter-reset: port; }
+.route li { counter-increment: port; display: inline-flex; align-items: baseline; gap: 0.4rem; font-size: var(--t-sm); padding: 0.35rem 0.75rem; border-radius: 999px; background: var(--deck); }
+.route li::before { content: counter(port, decimal-leading-zero); font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.75rem; }
+
+.principles { display: grid; grid-template-columns: 1fr; gap: 2rem; margin-top: 2.2rem; }
+@media (min-width: 820px) { .principles { grid-template-columns: repeat(3, 1fr); } }
+.principles h3 { font-size: var(--t-lg); }
+.principles p { color: var(--muted); margin-top: 0.5rem; max-width: 38ch; }
+.principles .n { display: block; font: 600 var(--t-sm)/1 var(--display); color: var(--ribbon); margin-bottom: 0.7rem; }
+.studio-intro { color: var(--muted); max-width: 60ch; margin-top: 1rem; font-size: var(--t-lg); }
+
+.contact { display: grid; grid-template-columns: 1fr; gap: 2rem; align-items: end; }
+@media (min-width: 820px) { .contact { grid-template-columns: 1.3fr 1fr; } }
+.contact .mail { display: inline-block; margin-top: 1rem; font: 600 clamp(1.25rem, 6.2vw, 2.6rem)/1.1 var(--display); text-decoration-thickness: 2px; overflow-wrap: anywhere; }
+.contact p { color: var(--muted); }
+.contact address { font-style: normal; color: var(--muted); font-size: var(--t-sm); line-height: 1.7; }
+
+footer { border-top: 1px solid var(--line); padding-block: 2rem 2.5rem; font-size: var(--t-sm); color: var(--muted); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem 2rem; }
+footer nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; }
+footer .legal { flex-basis: 100%; font-size: 0.8rem; opacity: 0.8; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="wrap top">
+  <a href="/" aria-label="EQB Games home"><img src="/assets/img/eqb-games-logo-200.webp" srcset="/assets/img/eqb-games-logo-200.webp 1x, /assets/img/eqb-games-logo-480.webp 2.4x" width="163" height="200" alt="EQB Games"></a>
+  <nav aria-label="Main">
+    <a href="#dockside">Our games</a>
+    <a href="#studio">Studio</a>
+    <a href="#contact">Contact</a>
+  </nav>
+</header>
+
+<main id="main">
+  <div class="wrap hero">
+    <div>
+      <h1>Cosy puzzle games for your phone.</h1>
+      <p class="lede">We're the games studio at EQB Business Solutions in Hyderabad. Our first game, <strong>Dockside Dispatch</strong>, is out now: sort the containers, fill the ships and keep the harbour moving.</p>
+      <div class="actions">
+        <a class="badge" href="https://play.google.com/store/apps/details?id=com.eqbbusiness.docksidedispatch" rel="noopener"><img src="/assets/img/google-play-badge.png" width="185" height="55" alt="Get Dockside Dispatch on Google Play"></a>
+        <a class="textlink" href="#dockside">See the game</a>
+      </div>
+    </div>
+
+    <!-- A tiny, playable Dockside Dispatch: the same rules as level 1 of the real game. -->
+    <div class="toy" id="toy" aria-labelledby="toy-title">
+      <div class="toy-head">
+        <h2 id="toy-title">Try one shift</h2>
+        <span class="count" id="toy-count">Ships 0 of 3</span>
+      </div>
+      <div class="sea">
+        <div class="berths" id="berths"></div>
+        <p class="waiting" id="waiting"></p>
+      </div>
+      <div class="quay">
+        <p class="label" id="bay-label">Holding bay · 0 / 3</p>
+        <div class="bay" id="bay"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div>
+      </div>
+      <div class="yard" id="yard" role="group" aria-label="Container yard. The container nearest the quay in each column can be moved."></div>
+      <div class="toy-foot">
+        <p class="msg" id="toy-msg" aria-live="polite">Tap a container next to the quay to load it onto the ship of its colour.</p>
+        <button type="button" id="toy-reset">Start again</button>
+      </div>
+    </div>
+  </div>
+
+  <section id="dockside" aria-labelledby="dockside-title">
+    <div class="wrap">
+      <p class="kicker">Out now on Google Play</p>
+      <div class="game-head">
+        <img src="/assets/img/dockside-icon-192.webp" width="76" height="76" alt="">
+        <h2 id="dockside-title">Dockside Dispatch</h2>
+      </div>
+      <div class="banner"><img src="/assets/img/dockside-feature.webp" width="1024" height="500" alt="A cargo ship stacked with red, blue, yellow and green containers under a dockside crane, in a harbour at sunset." loading="lazy"></div>
+
+      <div class="game-body">
+        <div class="copy">
+          <p>A relaxing container-sorting puzzle set in harbours around the world. Tap a container with a clear path to the quay and the crane loads it onto the ship of its colour. Fill a ship and it sails away. No ship for that colour yet? The container waits in the holding bay, but don't let the bay fill up.</p>
+          <h3>Two ways to play</h3>
+          <p><strong>Load</strong> the waiting ships from the container yard, or <strong>Unload</strong> a full ship onto trucks of matching colours and watch them drive off down the dock road.</p>
+          <h3>A twist in every port</h3>
+          <p>Long containers fill two slots. Locked containers open when the one carrying their key is sent off. Mystery containers show their colour once they have a clear path out. When you get stuck, Extra Berth, Crane Lift and Undo help you out.</p>
+        </div>
+
+        <div class="manifest" aria-labelledby="manifest-title">
+          <h3 id="manifest-title">Cargo manifest <span>v0.7</span></h3>
+          <dl>
+            <dt>Levels</dt><dd><b>200</b>, 100 in each mode</dd>
+            <dt>Ports</dt><dd><b>20</b>, a new one every 5 levels</dd>
+            <dt>Modes</dt><dd>Load, and Unload from level 5</dd>
+            <dt>Boosters</dt><dd>Extra Berth, Crane Lift, Undo</dd>
+            <dt>Colour-blind</dt><dd>Every colour has its own symbol</dd>
+            <dt>Offline</dt><dd>Plays anywhere, no connection needed</dd>
+            <dt>Price</dt><dd>Free, with optional ads</dd>
+          </dl>
+          <a class="badge" href="https://play.google.com/store/apps/details?id=com.eqbbusiness.docksidedispatch" rel="noopener"><img src="/assets/img/google-play-badge.png" width="185" height="55" alt="Get Dockside Dispatch on Google Play"></a>
+        </div>
+      </div>
+
+      <div class="shots" tabindex="0" role="region" aria-label="Screenshots of Dockside Dispatch">
+        <figure><img src="/assets/img/shot-load_4_hongkong.webp" width="540" height="960" loading="lazy" alt="Load mode in Hong Kong: three ships wait for blue, yellow and red containers."><figcaption><b>Hong Kong</b> · Load, level 4</figcaption></figure>
+        <figure><img src="/assets/img/shot-unload_8_singapore.webp" width="540" height="960" loading="lazy" alt="Unload mode in Singapore: trucks wait on the dock road for containers from the ship's hold."><figcaption><b>Singapore</b> · Unload, level 8</figcaption></figure>
+        <figure><img src="/assets/img/shot-load_23_amsterdam.webp" width="540" height="960" loading="lazy" alt="Load mode in Amsterdam with locked and mystery containers in the yard."><figcaption><b>Amsterdam</b> · Load, level 23</figcaption></figure>
+        <figure><img src="/assets/img/shot-unload_33_sydney.webp" width="540" height="960" loading="lazy" alt="Unload mode in Sydney, with the Harbour Bridge behind the dock road."><figcaption><b>Sydney</b> · Unload, level 33</figcaption></figure>
+        <figure><img src="/assets/img/shot-load_42_shanghai.webp" width="540" height="960" loading="lazy" alt="Load mode in Shanghai with long containers and purple containers in the yard."><figcaption><b>Shanghai</b> · Load, level 42</figcaption></figure>
+      </div>
+
+      <div class="route">
+        <h3>The route</h3>
+        <p>A new port every five levels. The harbour follows your clock, from sunrise to starry nights.</p>
+        <ol>
+          <li>Hong Kong</li><li>Singapore</li><li>Dubai</li><li>Mumbai</li><li>Amsterdam</li>
+          <li>Los Angeles</li><li>Sydney</li><li>Rotterdam</li><li>Shanghai</li><li>New York</li>
+          <li>London</li><li>Hamburg</li><li>Tokyo</li><li>San Francisco</li><li>Rio de Janeiro</li>
+          <li>Cape Town</li><li>Istanbul</li><li>Venice</li><li>Barcelona</li><li>Seattle</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="studio" aria-labelledby="studio-title">
+    <div class="wrap">
+      <p class="kicker">The studio</p>
+      <h2 id="studio-title">Small games, made with care</h2>
+      <p class="studio-intro">EQB Games is the mobile games division of EQB Business Solutions. We make short-session puzzle games you can pick up for five minutes and put down again, and we try to treat our players the way we'd like to be treated.</p>
+      <div class="principles">
+        <div>
+          <span class="n">No sign-up</span>
+          <h3>Just open it and play</h3>
+          <p>No account to create. We never ask for your name, email address or phone number, and your progress stays on your phone.</p>
+        </div>
+        <div>
+          <span class="n">Fair ads</span>
+          <h3>Ads that wait their turn</h3>
+          <p>No ads between levels until you've finished level 6, and videos only play when you choose one for a reward.</p>
+        </div>
+        <div>
+          <span class="n">For everyone</span>
+          <h3>Readable at a glance</h3>
+          <p>Every colour carries its own symbol, so colour-blind players can sort by shape. Tutorials follow your phone's animation settings.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact" aria-labelledby="contact-title">
+    <div class="wrap contact">
+      <div>
+        <p class="kicker">Contact</p>
+        <h2 id="contact-title">Say hello</h2>
+        <p style="margin-top:1rem; max-width: 46ch;">Players, press and partners: we read every message.</p>
+        <a class="mail" href="mailto:contact@eqbsolutions.com">contact@eqbsolutions.com</a>
+      </div>
+      <address>
+        EQB Business Solutions Private Limited<br>
+        4th Floor, Unispace Business Centre, Patrika Nagar<br>
+        HiTech City, Hyderabad, Telangana 500081, India
+      </address>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <span>&copy; 2026 EQB Business Solutions Private Limited</span>
+  <nav aria-label="Footer">
+    <a href="https://eqbsolutions.com/game/privacy-policy">Dockside Dispatch privacy policy</a>
+    <a href="https://eqbsolutions.com">eqbsolutions.com</a>
+  </nav>
+  <p class="legal">Google Play and the Google Play logo are trademarks of Google LLC.</p>
+</footer>
+
+<script>
+(() => {
+  // The real game's level-1 rules on a 3 x 3 yard: the container nearest the quay in each column can move.
+  // A docked ship of its colour takes it; otherwise it waits in the holding bay. Fill the bay and the shift is over.
+  const COLORS = {
+    red:    { css: "var(--c-red)",    name: "Red",    shape: '<circle cx="12" cy="12" r="9" fill="#fff"/>' },
+    blue:   { css: "var(--c-blue)",   name: "Blue",   shape: '<path d="M12 3 22 20H2z" fill="#fff"/>' },
+    yellow: { css: "var(--c-yellow)", name: "Yellow", shape: '<rect x="4" y="4" width="16" height="16" rx="1.5" fill="#fff"/>' },
+  };
+  const SHIP_SIZE = 3, BAY_SIZE = 3, BERTHS = 2;
+  // Columns listed quay-side first. Solvable, but sending all three yellows to the bay ends the shift.
+  const START = [["blue", "yellow", "red"], ["red", "red", "yellow"], ["yellow", "blue", "blue"]];
+  const QUEUE = ["red", "blue", "yellow"];
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+
+  const $ = id => document.getElementById(id);
+  const yardEl = $("yard"), berthsEl = $("berths"), bayEl = $("bay"), msg = $("toy-msg");
+  let yard, queue, docked, bay, sailed, over, busy;
+
+  const icon = c => `<svg viewBox="0 0 24 24" aria-hidden="true">${COLORS[c].shape}</svg>`;
+
+  function makeBox(color, small) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "box" + (small ? " small" : "");
+    b.style.setProperty("--c", COLORS[color].css);
+    b.innerHTML = icon(color);
+    b.dataset.color = color;
+    return b;
+  }
+
+  // Move an element into a new parent with a short flight (FLIP), like the crane lifting it across.
+  function fly(el, parent) {
+    const from = el.getBoundingClientRect();
+    parent.appendChild(el);
+    if (reduce.matches) return Promise.resolve();
+    const to = el.getBoundingClientRect();
+    const dx = from.left - to.left, dy = from.top - to.top, s = from.width / to.width;
+    return el.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(${s})` },
+      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 40}px) scale(${(s + 1) / 2})`, offset: 0.5 },
+      { transform: "none" }
+    ], { duration: 520, easing: "cubic-bezier(.3,.7,.3,1)" }).finished.catch(() => {});
+  }
+
+  function shipEl(color) {
+    const s = document.createElement("div");
+    s.className = "ship";
+    s.dataset.color = color;
+    s.innerHTML = `<div class="cabin"></div><div class="hull" style="--hull:${COLORS[color].css}">` +
+      `<div class="hold"></div><div class="hold"></div><div class="hold"></div>` +
+      `<span class="tag">${icon(color)}<span class="n">0/${SHIP_SIZE}</span></span></div>`;
+    s.setAttribute("role", "img");
+    return s;
+  }
+
+  function labelShip(s) {
+    const n = s.querySelectorAll(".hold .box").length;
+    s.querySelector(".n").textContent = `${n}/${SHIP_SIZE}`;
+    s.setAttribute("aria-label", `${COLORS[s.dataset.color].name} ship, ${n} of ${SHIP_SIZE} loaded`);
+    return n;
+  }
+
+  function render() {
+    // yard: each column keeps its order; empty cells stay as gaps nearest the quay
+    [...yardEl.querySelectorAll(".col")].forEach((col, ci) => {
+      const cells = col.querySelectorAll(".cell");
+      const front = cells.length - yard[ci].length;   // index of the first filled cell
+      cells.forEach((cell, ri) => {
+        const b = cell.querySelector(".box");
+        if (!b) return;
+        const free = ri === front && !over && !busy;
+        b.disabled = !free;
+        b.setAttribute("aria-label", `${COLORS[b.dataset.color].name} container` + (free ? ", tap to move" : ", blocked"));
+      });
+    });
+    $("toy-count").textContent = `Ships ${sailed} of ${QUEUE.length}`;
+    const inBay = bay.filter(Boolean).length;
+    $("bay-label").textContent = `Holding bay · ${inBay} / ${BAY_SIZE}`;
+    const next = queue[0];
+    $("waiting").textContent = next ? `Next in: the ${COLORS[next].name.toLowerCase()} ship` : (docked.some(Boolean) ? "No more ships waiting" : "");
+  }
+
+  function dockNext(berth) {
+    const color = queue.shift();
+    if (!color) { docked[berth] = null; return; }
+    const s = shipEl(color);
+    if (!reduce.matches) s.classList.add("dock");
+    berthsEl.children[berth].appendChild(s);
+    docked[berth] = s;
+    labelShip(s);
+  }
+
+  async function load(box, ship) {
+    const hold = [...ship.querySelectorAll(".hold")].find(h => !h.firstChild);
+    box.classList.add("small");
+    box.disabled = true;
+    await fly(box, hold);
+    if (labelShip(ship) === SHIP_SIZE) await sail(ship);
+  }
+
+  async function sail(ship) {
+    const berth = docked.indexOf(ship);
+    ship.classList.add("sail");
+    await new Promise(r => setTimeout(r, reduce.matches ? 0 : 700));
+    ship.remove();
+    sailed++;
+    dockNext(berth);
+    // Containers waiting in the bay load as soon as their ship docks.
+    const s = docked[berth];
+    if (s) for (let i = 0; i < bay.length; i++) {
+      if (bay[i] && bay[i].dataset.color === s.dataset.color && labelShip(s) < SHIP_SIZE) {
+        const b = bay[i]; bay[i] = null;
+        await load(b, s);
+      }
+    }
+  }
+
+  async function tap(box) {
+    if (busy || over) return;
+    const ci = [...yardEl.children].indexOf(box.closest(".col"));
+    busy = true; render();
+    yard[ci].shift();
+    box.disabled = true;   // once it leaves the yard it is never tapped again
+    box.setAttribute("aria-label", `${COLORS[box.dataset.color].name} container`);
+    const ship = docked.find(s => s && s.dataset.color === box.dataset.color && labelShip(s) < SHIP_SIZE);
+    if (ship) {
+      await load(box, ship);
+    } else {
+      const slot = bay.indexOf(null);
+      bay[slot] = box;
+      box.classList.add("small");
+      await fly(box, bayEl.children[slot]);
+      if (!bay.includes(null)) {
+        over = true;
+        msg.textContent = "The holding bay is full, so the shift is over. Keep a bay slot free for the ships still to come.";
+      }
+    }
+    busy = false;
+    if (!over && sailed === QUEUE.length) {
+      over = true;
+      msg.innerHTML = 'Harbour clear! There are 200 more levels in <a href="https://play.google.com/store/apps/details?id=com.eqbbusiness.docksidedispatch" rel="noopener">Dockside Dispatch on Google Play</a>.';
+    } else if (!over) {
+      const inBay = bay.filter(Boolean).length;
+      msg.textContent = inBay ? `${inBay} waiting in the bay. ${inBay === BAY_SIZE - 1 ? "One slot left!" : "They board when their ship docks."}` : "Nice. Keep the ships moving.";
+    }
+    render();
+  }
+
+  function reset() {
+    yard = START.map(c => c.slice());
+    queue = QUEUE.slice(); docked = []; bay = Array(BAY_SIZE).fill(null); sailed = 0; over = false; busy = false;
+    yardEl.innerHTML = ""; berthsEl.innerHTML = "";
+    [...bayEl.children].forEach(s => s.replaceChildren());
+    for (let i = 0; i < BERTHS; i++) { const b = document.createElement("div"); b.className = "berth"; berthsEl.appendChild(b); dockNext(i); }
+    yard.forEach(colors => {
+      const col = document.createElement("div"); col.className = "col";
+      colors.forEach(c => { const cell = document.createElement("div"); cell.className = "cell"; const b = makeBox(c); b.addEventListener("click", () => tap(b)); cell.appendChild(b); col.appendChild(cell); });
+      yardEl.appendChild(col);
+    });
+    msg.textContent = "Tap a container next to the quay to load it onto the ship of its colour.";
+    render();
+  }
+
+  $("toy-reset").addEventListener("click", reset);
+  reset();
+})();
+</script>
+</body>
+</html>
