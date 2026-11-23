@@ -100,15 +100,15 @@ namespace Dockside
                 hasHidden |= c.kind == ContainerKind.Hidden;
             }
             if (!Unload && levelNumber == 1 && !Seen(LoadIntroKey))
-                yield return Card(LoadIntroKey, "How to play", "Tap a container to load the ship of its colour. Full ships sail away.", DemoKind.Basics);
+                yield return Card(LoadIntroKey, null, "How to play", "Tap a container to load the ship of its colour. Full ships sail away.", DemoKind.Basics);
             if (Unload && levelNumber == 1 && !Seen(UnloadIntroKey))
-                yield return Card(UnloadIntroKey, "New mode: Unload", "Send each container to the truck of its colour. Full trucks drive off.", DemoKind.Basics);
+                yield return Card(UnloadIntroKey, "NEW MODE", "Unload", "Send each container to the truck of its colour. Full trucks drive off.", DemoKind.Basics);
             if (hasLong && !Seen(LongKey))
-                yield return Card(LongKey, "New: long containers", $"They take 2 slots, on a {Vehicle} or in the holding bay.", DemoKind.Long);
+                yield return Card(LongKey, "NEW", "Long containers", $"They take 2 slots, on a {Vehicle} or in the holding bay.", DemoKind.Long);
             if (hasLock && !Seen(LockKey))
-                yield return Card(LockKey, "New: locked containers", "Send off the container with the gold key to unlock it.", DemoKind.Locked);
+                yield return Card(LockKey, "NEW", "Locked containers", "Send off the container with the gold key to unlock it.", DemoKind.Locked);
             if (hasHidden && !Seen(HiddenKey))
-                yield return Card(HiddenKey, "New: mystery containers", "A \"?\" shows its colour once it has a clear path.", DemoKind.Hidden);
+                yield return Card(HiddenKey, "NEW", "Mystery containers", "A \"?\" shows its colour once it has a clear path.", DemoKind.Hidden);
 
             if (levelNumber == 1 && !Seen(TapKeyFor))
             {
@@ -133,11 +133,11 @@ namespace Dockside
         private string Vehicle => Unload ? "truck" : "ship";
 
         /// <summary>A tutorial card with its demo, shown once the screen is free; done when closed (or replaced).</summary>
-        private IEnumerator Card(string key, string title, string caption, DemoKind demo)
+        private IEnumerator Card(string key, string eyebrow, string title, string caption, DemoKind demo)
         {
             while (_hud.IsModalOpen) yield return null;
             bool closed = false;
-            _hud.ShowDemo(title, caption, demo, _mode, ("Got it", _pal.uiGood, () => { closed = true; _hud.HidePanels(); }));
+            _hud.ShowDemo(eyebrow, title, caption, demo, _mode, ("Got it", _pal.uiGood, () => { closed = true; _hud.HidePanels(); }));
             MarkSeen(key);
             while (!closed && _hud.IsModalOpen) yield return null;
             yield return new WaitForSeconds(0.2f);
@@ -159,7 +159,7 @@ namespace Dockside
                 _ => ("Undo", "Takes back your last move, even the one that filled the bay.", DemoKind.Undo),
             };
             Analytics.Event("booster_intro", ("booster", type), ("mode", _mode));
-            _hud.ShowDemo(title, caption, demo, _mode, ("Got it", _pal.uiGood, () => { _hud.HidePanels(); then?.Invoke(); }));
+            _hud.ShowDemo("BOOSTER", title, caption, demo, _mode, ("Got it", _pal.uiGood, () => { _hud.HidePanels(); then?.Invoke(); }));
             return true;
         }
 
@@ -176,7 +176,7 @@ namespace Dockside
         {
             if (Seen(BayKeyFor)) return;
             MarkSeen(BayKeyFor);   // now, so a second container reaching the bay before the card shows doesn't queue another
-            StartCoroutine(Card(BayKeyFor, "The holding bay", $"No {Vehicle} for that colour yet? It waits here. Don't fill the bay!", DemoKind.Bay));
+            StartCoroutine(Card(BayKeyFor, "TIP", "The holding bay", $"No {Vehicle} for that colour yet? It waits here. Don't fill the bay!", DemoKind.Bay));
         }
 
         // ------------------------------------------------------------------ pointer

@@ -188,7 +188,7 @@ namespace Dockside
         /// <summary>After the win that unlocks Unload: a "new mode" card with the choice to try it now or keep loading.</summary>
         public void ShowUnlock(Action tryIt, Action keepLoading)
         {
-            var card = ShowDemo("New mode unlocked!", "UNLOAD: send each container to the truck of its colour.", DemoKind.Basics, Core.GameMode.Unload,
+            var card = ShowDemo(null, "New mode unlocked!", "UNLOAD: send each container to the truck of its colour.", DemoKind.Basics, Core.GameMode.Unload,
                 ("Try Unload", Palette.Hex("EE8A2B"), tryIt), ("Keep loading", Palette.Hex("2F7FE0"), keepLoading));
             // A "NEW" tag on the card's corner, in the Unload colour.
             var tag = UiFactory.Panel("NewTag", card, Palette.Hex("EE8A2B"), Palette.Hex("2E2422"), 6f);
@@ -247,13 +247,14 @@ namespace Dockside
         {
             const float TileW = 250, TileH = 210, Gap = 26;
             float gridTop = 420, gridH = TileH * 2 + Gap;
+            var rt = CardFrame("Paused", port, 900, 0);
+            gridTop += _headerExtra;
             float height = gridTop + gridH + (testTools != null ? 170 : 0) + 70;
-            var rt = CardFrame("Paused", port, 900, height, 0);
 
             var resumeBtn = UiFactory.Button("Resume", rt, _pal.uiGood, Palette.Darken(_pal.uiGood, 0.3f), resume, "Resume");
             var brt = (RectTransform)resumeBtn.transform;
             brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 1);
-            brt.anchoredPosition = new Vector2(0, -250); brt.sizeDelta = new Vector2(TileW * 3 + Gap * 2, 140);
+            brt.anchoredPosition = new Vector2(0, -250 - _headerExtra); brt.sizeDelta = new Vector2(TileW * 3 + Gap * 2, 140);
             IconAndLabel(brt, "play", "Resume", 54, 64);
 
             var tiles = new (string icon, string label, Color color, Action action, string badge)[]
@@ -295,6 +296,7 @@ namespace Dockside
                 tt.anchoredPosition = new Vector2(0, -gridTop - gridH - 50); tt.sizeDelta = new Vector2(TileW * 3 + Gap * 2, 110);
                 UiFactory.Label("Text", tools.transform, "Test tools", 40, Color.white);
             }
+            FinishCard(rt, height);
         }
 
         /// <summary>A plain list of buttons (e.g. the test tools), first one on top.</summary>
@@ -347,36 +349,92 @@ namespace Dockside
 
         private RectTransform Card(string title, string body, int buttons)
         {
-            _cardButtons = buttons;
-            var rt = CardFrame(title, null, 860, 420 + buttons * ButtonStep, buttons);
-            var b = UiFactory.Rect("Body", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -190), new Vector2(-100, 180));
-            UiFactory.Label("BodyText", b, body, 44, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            const float Width = 860, BodyMin = 180;
+            var rt = CardFrame(title, null, Width, buttons);
+            var b = UiFactory.Rect("Body", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -190 - _headerExtra), new Vector2(-100, BodyMin));
+            var text = UiFactory.Label("BodyText", b, body, 44, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            // A long body (e.g. the privacy question) grows the card instead of running into the buttons.
+            float bodyH = Mathf.Max(BodyMin, TextHeight(text, Width - 100) + 24);
+            b.sizeDelta = new Vector2(-100, bodyH);
+            FinishCard(rt, 420 + _headerExtra + (bodyH - BodyMin) + buttons * ButtonStep);
             return rt;
         }
 
-        /// <summary>The cream card on the dimmed overlay, with its title (and an optional one-line subtitle).</summary>
-        private RectTransform CardFrame(string title, string subtitle, float width, float height, int buttons)
+        // How much taller the card's header is than a one-line title (an eyebrow tag, a two-line title).
+        // Everything below the header moves down by this much.
+        private float _headerExtra;
+
+        /// <summary>
+        /// The cream card on the dimmed overlay, with its title, an optional eyebrow tag above it ("NEW") and an optional
+        /// one-line subtitle under it. The title is fitted to one line (76 px down to 60 px) and only wraps to two lines
+        /// when it is still too long; the caller lays its content out <see cref="_headerExtra"/> lower and then calls
+        /// <see cref="FinishCard"/> with the card's height.
+        /// </summary>
+        private RectTransform CardFrame(string title, string subtitle, float width, int buttons, string eyebrow = null)
         {
+            const float TitleH = 110, TitleMax = 76, TitleMin = 60, EyebrowH = 54, EyebrowGap = 4;
             HidePanels();
             _overlay.gameObject.SetActive(true);
             var card = UiFactory.Panel("Card", _overlay, _pal.uiCream, _pal.uiShadow, 16f);
             var rt = (RectTransform)card.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             _cardButtons = buttons;
-            rt.sizeDelta = new Vector2(width, height);
-            var t = UiFactory.Rect("Title", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, subtitle != null ? -40 : -60), new Vector2(-80, 110));
-            UiFactory.Label("TitleText", t, title, 76, _pal.uiText);
+            rt.sizeDelta = new Vector2(width, 0);
+            float top = subtitle != null ? 40 : 60;
+            _headerExtra = 0;
+
+            if (!string.IsNullOrEmpty(eyebrow))
+            {
+                var chip = UiFactory.Panel("Eyebrow", rt, Palette.Hex("4E3F3B"));
+                var crt = (RectTransform)chip.transform;
+                crt.anchorMin = crt.anchorMax = crt.pivot = new Vector2(0.5f, 1);
+                var ct = UiFactory.Label("EyebrowText", crt, eyebrow, 34, _pal.uiCream);
+                crt.sizeDelta = new Vector2(TextWidth(ct) + 48, EyebrowH);
+                crt.anchoredPosition = new Vector2(0, -top + 16);
+                top += EyebrowH - 16 + EyebrowGap;
+                _headerExtra += EyebrowH - 16 + EyebrowGap;
+            }
+
+            float titleW = width - 80;
+            var t = UiFactory.Rect("Title", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -top), new Vector2(-80, TitleH));
+            var tt = UiFactory.Label("TitleText", t, title, (int)TitleMax, _pal.uiText);
+            for (int size = (int)TitleMax; size > TitleMin && TextWidth(tt) > titleW; size -= 4) tt.fontSize = size - 4;
+            float titleH = Mathf.Max(TitleH, TextHeight(tt, titleW) + 16);
+            t.sizeDelta = new Vector2(-80, titleH);
+            _headerExtra += titleH - TitleH;
+
             if (subtitle != null)
             {
-                var st = UiFactory.Rect("Subtitle", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -150), new Vector2(-80, 60));
+                var st = UiFactory.Rect("Subtitle", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -150 - _headerExtra), new Vector2(-80, 60));
                 UiFactory.Label("SubtitleText", st, subtitle, 40, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
             }
-            AnimateIn(rt);
             return rt;
         }
 
+        /// <summary>
+        /// Sizes the card, then scales it down (uniformly, so the layout holds) if it doesn't fit inside the safe area
+        /// with a margin, centres it there, and animates it in.
+        /// </summary>
+        private void FinishCard(RectTransform rt, float height)
+        {
+            const float MarginX = 30, MarginY = 48;
+            rt.sizeDelta = new Vector2(rt.sizeDelta.x, height);
+            float scale = 1f;
+            var area = _overlay.rect;
+            if (area.width > 1 && area.height > 1 && Screen.width > 0 && Screen.height > 0)
+            {
+                var safe = Screen.safeArea;
+                float sx = area.width / Screen.width, sy = area.height / Screen.height;
+                float availW = safe.width * sx - 2 * MarginX, availH = safe.height * sy - 2 * MarginY;
+                scale = Mathf.Min(1f, availW / rt.sizeDelta.x, availH / height);
+                rt.anchoredPosition = new Vector2((safe.center.x - Screen.width * 0.5f) * sx, (safe.center.y - Screen.height * 0.5f) * sy);
+            }
+            rt.localScale = Vector3.one * scale;
+            AnimateIn(rt, scale);
+        }
+
         /// <summary>Cards fade in with a slight scale (under 200 ms, no bounce); with reduced motion they just appear.</summary>
-        private void AnimateIn(RectTransform rt)
+        private void AnimateIn(RectTransform rt, float scale)
         {
             if (MotionPrefs.Reduced) return;
             var group = rt.gameObject.AddComponent<CanvasGroup>();
@@ -385,27 +443,34 @@ namespace Dockside
             {
                 if (!rt) return;
                 group.alpha = e;
-                rt.localScale = Vector3.one * Mathf.Lerp(0.95f, 1f, e);
+                rt.localScale = Vector3.one * (scale * Mathf.Lerp(0.95f, 1f, e));
             }, Tween.EaseOutCubic));
         }
+
+        /// <summary>Width of the text on one line, in canvas units.</summary>
+        private static float TextWidth(Text t) =>
+            t.cachedTextGeneratorForLayout.GetPreferredWidth(t.text, t.GetGenerationSettings(Vector2.zero)) / t.pixelsPerUnit;
+
+        /// <summary>Height of the text wrapped to <paramref name="width"/>, in canvas units.</summary>
+        private static float TextHeight(Text t, float width) =>
+            t.cachedTextGeneratorForLayout.GetPreferredHeight(t.text, t.GetGenerationSettings(new Vector2(width, 0))) / t.pixelsPerUnit;
 
         /// <summary>
         /// Tutorial card: title, a mini screen where a short scene shows the mechanic (DemoStage), a one- or two-line
         /// caption, and its buttons.
         /// </summary>
-        public RectTransform ShowDemo(string title, string caption, DemoKind kind, Core.GameMode mode, params (string label, Color color, Action action)[] buttons)
+        public RectTransform ShowDemo(string eyebrow, string title, string caption, DemoKind kind, Core.GameMode mode, params (string label, Color color, Action action)[] buttons)
         {
-            const float ScreenW = 780, ScreenH = ScreenW * DemoStage.TexHeight / DemoStage.TexWidth;
+            const float Width = 880, ScreenW = 780, ScreenH = ScreenW * DemoStage.TexHeight / DemoStage.TexWidth, CaptionMin = 120;
             int n = buttons.Length;
-            _cardButtons = n;
-            float height = 170 + ScreenH + 150 + n * ButtonStep + 50;
-            var rt = CardFrame(title, null, 880, height, n);
+            var rt = CardFrame(title, null, Width, n, eyebrow);
+            float top = 178 + _headerExtra;   // just under the title
 
             // Mini screen: a dark rounded frame, the demo texture inside it (rounded by a mask), and the tap overlay.
             var frame = UiFactory.Panel("ScreenFrame", rt, Palette.Hex("2E2422"));
             var frt = (RectTransform)frame.transform;
             frt.anchorMin = frt.anchorMax = frt.pivot = new Vector2(0.5f, 1);
-            frt.anchoredPosition = new Vector2(0, -165); frt.sizeDelta = new Vector2(ScreenW + 20, ScreenH + 20);
+            frt.anchoredPosition = new Vector2(0, -top); frt.sizeDelta = new Vector2(ScreenW + 20, ScreenH + 20);
             var maskImg = UiFactory.Panel("Mask", frt, Color.white);
             var mrt = (RectTransform)maskImg.transform;
             UiFactory.Stretch(mrt, 10f);
@@ -421,9 +486,12 @@ namespace Dockside
                 DemoOverlay.Attach(screen, _pal);
             }
 
-            var cap = UiFactory.Rect("Caption", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -165 - ScreenH - 40), new Vector2(-90, 120));
-            UiFactory.Label("CaptionText", cap, caption, 42, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            var cap = UiFactory.Rect("Caption", rt, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1), new Vector2(0, -top - ScreenH - 40), new Vector2(-90, CaptionMin));
+            var ct = UiFactory.Label("CaptionText", cap, caption, 42, _pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            float capH = Mathf.Max(CaptionMin, TextHeight(ct, Width - 90) + 20);
+            cap.sizeDelta = new Vector2(-90, capH);
             for (int i = 0; i < n; i++) AddCardButton(rt, buttons[i].label, buttons[i].color, buttons[i].action, i);
+            FinishCard(rt, top + 5 + ScreenH + 150 + (capH - CaptionMin) + n * ButtonStep + 50);
             return rt;
         }
 
@@ -448,7 +516,7 @@ namespace Dockside
             var trt = (RectTransform)t.transform;
             trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0.5f);
             t.horizontalOverflow = HorizontalWrapMode.Overflow;
-            trt.sizeDelta = new Vector2(t.preferredWidth + 4, iconSize);
+            trt.sizeDelta = new Vector2(t.preferredWidth + 4, Mathf.Max(iconSize, t.preferredHeight));
         }
 
         /// <summary>Test tool: step through levels with -5/-1/+1/+5 (5 = one port) and play the chosen one.</summary>

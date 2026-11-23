@@ -2,8 +2,12 @@
   <packages>
     <package>com.google.android.gms:play-services-ads-identifier:18.1.0</package>
     <package>com.google.android.gms:play-services-games-v2:22.1.0</package>
+    <package>com.unity3d.ads-mediation:facebook-adapter:5.8.0</package>
+    <package>com.unity3d.ads-mediation:inmobi-adapter:5.13.0</package>
     <package>com.unity3d.ads-mediation:mediation-sdk:9.8.0</package>
+    <package>com.unity3d.ads-mediation:mintegral-adapter:5.25.0</package>
     <package>com.unity3d.ads-mediation:unityads-adapter:5.17.0</package>
+    <package>com.unity3d.ads-mediation:vungle-adapter:5.18.0</package>
   </packages>
   <files />
   <settings>
