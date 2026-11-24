@@ -1,68 +1,69 @@
 {
     "levelNumber": 21,
     "mode": 1,
-    "seed": 22354818,
+    "seed": 28743287,
     "width": 6,
-    "height": 6,
+    "height": 7,
     "berths": 3,
     "bufferSize": 5,
     "colorCount": 5,
-    "casualWinRate": 0.5249999761581421,
+    "casualWinRate": 0.5,
+    "greedyWinRate": 0.5,
     "containers": [
         {
             "id": 0,
-            "x": 5,
-            "y": 5,
+            "x": 2,
+            "y": 3,
             "length": 1,
-            "color": 2,
+            "color": 1,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
         },
         {
             "id": 1,
-            "x": 3,
-            "y": 5,
+            "x": 5,
+            "y": 1,
             "length": 1,
-            "color": 0,
+            "color": 4,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
         },
         {
             "id": 2,
-            "x": 5,
-            "y": 2,
+            "x": 3,
+            "y": 1,
             "length": 1,
-            "color": 4,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 3,
-            "x": 1,
-            "y": 4,
-            "length": 2,
-            "color": 4,
+            "color": 1,
             "kind": 2,
             "lockId": -1,
             "keyId": -1
         },
         {
-            "id": 4,
-            "x": 2,
-            "y": 1,
-            "length": 2,
+            "id": 3,
+            "x": 5,
+            "y": 3,
+            "length": 1,
             "color": 3,
             "kind": 0,
             "lockId": -1,
-            "keyId": 0
+            "keyId": -1
+        },
+        {
+            "id": 4,
+            "x": 4,
+            "y": 6,
+            "length": 1,
+            "color": 3,
+            "kind": 2,
+            "lockId": -1,
+            "keyId": -1
         },
         {
             "id": 5,
-            "x": 3,
-            "y": 2,
+            "x": 1,
+            "y": 4,
             "length": 1,
             "color": 1,
             "kind": 0,
@@ -72,7 +73,7 @@
         {
             "id": 6,
             "x": 2,
-            "y": 3,
+            "y": 4,
             "length": 2,
             "color": 0,
             "kind": 0,
@@ -81,77 +82,7 @@
         },
         {
             "id": 7,
-            "x": 4,
-            "y": 1,
-            "length": 1,
-            "color": 0,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 8,
-            "x": 5,
-            "y": 1,
-            "length": 1,
-            "color": 1,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 9,
-            "x": 1,
-            "y": 1,
-            "length": 1,
-            "color": 1,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 10,
-            "x": 0,
-            "y": 2,
-            "length": 1,
-            "color": 3,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 11,
-            "x": 1,
-            "y": 3,
-            "length": 1,
-            "color": 1,
-            "kind": 1,
-            "lockId": 0,
-            "keyId": -1
-        },
-        {
-            "id": 12,
-            "x": 0,
-            "y": 4,
-            "length": 1,
-            "color": 1,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 13,
             "x": 3,
-            "y": 0,
-            "length": 2,
-            "color": 2,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 14,
-            "x": 2,
             "y": 0,
             "length": 1,
             "color": 4,
@@ -160,8 +91,78 @@
             "keyId": -1
         },
         {
-            "id": 15,
+            "id": 8,
+            "x": 4,
+            "y": 5,
+            "length": 2,
+            "color": 2,
+            "kind": 1,
+            "lockId": 0,
+            "keyId": -1
+        },
+        {
+            "id": 9,
             "x": 1,
+            "y": 2,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 10,
+            "x": 1,
+            "y": 5,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 11,
+            "x": 1,
+            "y": 1,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 12,
+            "x": 5,
+            "y": 4,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 13,
+            "x": 5,
+            "y": 6,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 14,
+            "x": 4,
+            "y": 1,
+            "length": 1,
+            "color": 1,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 15,
+            "x": 5,
             "y": 0,
             "length": 1,
             "color": 4,
@@ -171,38 +172,8 @@
         },
         {
             "id": 16,
-            "x": 1,
-            "y": 2,
-            "length": 2,
-            "color": 1,
-            "kind": 2,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 17,
-            "x": 1,
+            "x": 3,
             "y": 5,
-            "length": 1,
-            "color": 3,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 18,
-            "x": 0,
-            "y": 3,
-            "length": 1,
-            "color": 1,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 19,
-            "x": 5,
-            "y": 4,
             "length": 1,
             "color": 4,
             "kind": 0,
@@ -210,9 +181,29 @@
             "keyId": -1
         },
         {
-            "id": 20,
-            "x": 2,
-            "y": 5,
+            "id": 17,
+            "x": 1,
+            "y": 0,
+            "length": 1,
+            "color": 2,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 18,
+            "x": 1,
+            "y": 6,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 19,
+            "x": 1,
+            "y": 3,
             "length": 1,
             "color": 1,
             "kind": 0,
@@ -220,10 +211,20 @@
             "keyId": -1
         },
         {
-            "id": 21,
-            "x": 5,
-            "y": 3,
+            "id": 20,
+            "x": 4,
+            "y": 4,
             "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 21,
+            "x": 2,
+            "y": 2,
+            "length": 2,
             "color": 1,
             "kind": 0,
             "lockId": -1,
@@ -231,20 +232,90 @@
         },
         {
             "id": 22,
-            "x": 3,
-            "y": 4,
-            "length": 2,
-            "color": 2,
+            "x": 4,
+            "y": 3,
+            "length": 1,
+            "color": 0,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
         },
         {
             "id": 23,
+            "x": 0,
+            "y": 0,
+            "length": 1,
+            "color": 1,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": 0
+        },
+        {
+            "id": 24,
+            "x": 5,
+            "y": 2,
+            "length": 1,
+            "color": 1,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 25,
+            "x": 3,
+            "y": 6,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 26,
+            "x": 2,
+            "y": 1,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 27,
+            "x": 4,
+            "y": 0,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 28,
+            "x": 0,
+            "y": 3,
+            "length": 1,
+            "color": 4,
+            "kind": 2,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 29,
+            "x": 2,
+            "y": 5,
+            "length": 1,
+            "color": 2,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 30,
             "x": 4,
             "y": 2,
             "length": 1,
-            "color": 2,
+            "color": 1,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
@@ -252,35 +323,11 @@
     ],
     "ships": [
         {
-            "color": 1,
-            "capacity": 2
-        },
-        {
-            "color": 3,
-            "capacity": 2
-        },
-        {
-            "color": 0,
-            "capacity": 2
-        },
-        {
-            "color": 4,
-            "capacity": 2
-        },
-        {
-            "color": 2,
-            "capacity": 2
-        },
-        {
             "color": 4,
             "capacity": 2
         },
         {
             "color": 3,
-            "capacity": 2
-        },
-        {
-            "color": 1,
             "capacity": 2
         },
         {
@@ -296,7 +343,7 @@
             "capacity": 2
         },
         {
-            "color": 1,
+            "color": 4,
             "capacity": 2
         },
         {
@@ -305,6 +352,38 @@
         },
         {
             "color": 1,
+            "capacity": 2
+        },
+        {
+            "color": 4,
+            "capacity": 2
+        },
+        {
+            "color": 1,
+            "capacity": 2
+        },
+        {
+            "color": 4,
+            "capacity": 2
+        },
+        {
+            "color": 0,
+            "capacity": 2
+        },
+        {
+            "color": 1,
+            "capacity": 2
+        },
+        {
+            "color": 4,
+            "capacity": 2
+        },
+        {
+            "color": 1,
+            "capacity": 2
+        },
+        {
+            "color": 0,
             "capacity": 2
         },
         {

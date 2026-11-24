@@ -46,24 +46,33 @@ namespace Dockside.Core
                 p.minCapacity = TruckCapacity; p.maxCapacity = TruckCapacity;
                 // Small trucks turn over quickly, which makes the middle levels easier than Load's: one more colour
                 // there brings the casual win rate back into the same target band (the late game already lands in it).
-                if (Canonical(level) >= 6) p.colors = Math.Min(MaxColors, p.colors + 1);
+                if (Canonical(level) >= 5) p.colors = Math.Min(MaxColors, p.colors + 1);
             }
             return p;
         }
 
-        /// <summary>Difficulty curve for Load, with a small sawtooth (every 5th level is a spike).</summary>
+        /// <summary>Every 5th level is a "Hard level": badge and banner, a fuller yard, fewer berths early on, more coins.</summary>
+        public static bool IsHard(int level) => Canonical(level) % 5 == 0;
+
+        /// <summary>
+        /// Difficulty curve for Load, with a sawtooth: every 5th level is a hard level, the one after it a breather.
+        /// The holding bay matters from level 2 (more colours than ships at the quay), and the twists arrive early:
+        /// long containers at 4, locked at 8, mystery at 12, five colours at 15.
+        /// </summary>
         public static LevelParams ParamsFor(int level)
         {
             int n = Canonical(level);
             var p = new LevelParams { berths = 3, buffer = 5, minCapacity = 3, maxCapacity = 3, fill = 0.8f };
 
-            if (n <= 2)        { p.width = 4; p.height = 3 + (n - 1); p.colors = 2; p.fill = 0.75f; }
-            else if (n <= 5)   { p.width = 5; p.height = 4 + (n >= 5 ? 1 : 0); p.colors = 3; p.fill = 0.8f; }
-            else if (n <= 8)   { p.width = 5; p.height = 5; p.colors = 3; p.longChance = 0.18f; p.maxCapacity = 4; p.fill = 0.84f; }
-            else if (n <= 11)  { p.width = 6; p.height = 5; p.colors = 4; p.longChance = 0.2f; p.maxCapacity = 4; p.fill = 0.85f; }
-            else if (n <= 14)  { p.width = 6; p.height = 6; p.colors = 4; p.longChance = 0.2f; p.maxCapacity = 4; p.locks = 1; p.fill = 0.85f; }
-            else if (n <= 17)  { p.width = 6; p.height = 6; p.colors = 4; p.longChance = 0.25f; p.maxCapacity = 4; p.locks = 1; p.fill = 0.88f; }
-            else if (n <= 21)  { p.width = 6; p.height = 6; p.colors = 4; p.longChance = 0.25f; p.maxCapacity = 4; p.locks = 1; p.hiddenChance = 0.12f; p.fill = 0.88f; }
+            if (n == 1)        { p.width = 4; p.height = 3; p.colors = 2; p.fill = 0.75f; }                 // how to play
+            else if (n == 2)   { p.width = 4; p.height = 4; p.colors = 3; p.berths = 2; p.fill = 0.85f; }  // the bay matters
+            else if (n == 3)   { p.width = 5; p.height = 4; p.colors = 4; p.berths = 2; p.fill = 0.82f; }  // two colours wait
+            else if (n == 4)   { p.width = 5; p.height = 4; p.colors = 3; p.berths = 2; p.longChance = 0.2f; p.maxCapacity = 4; p.fill = 0.82f; }
+            else if (n <= 7)   { p.width = 5; p.height = 5; p.colors = 4; p.longChance = 0.2f; p.maxCapacity = 4; p.fill = 0.84f; }
+            else if (n <= 9)   { p.width = 5; p.height = 5; p.colors = 4; p.longChance = 0.2f; p.maxCapacity = 4; p.locks = 1; p.fill = 0.84f; }
+            else if (n <= 11)  { p.width = 6; p.height = 5; p.colors = 4; p.longChance = 0.22f; p.maxCapacity = 4; p.locks = 1; p.fill = 0.85f; }
+            else if (n <= 14)  { p.width = 6; p.height = 6; p.colors = 4; p.longChance = 0.22f; p.maxCapacity = 4; p.locks = 1; p.hiddenChance = 0.12f; p.fill = 0.85f; }
+            else if (n <= 19)  { p.width = 6; p.height = 6; p.colors = 5; p.longChance = 0.25f; p.maxCapacity = 4; p.locks = 1; p.hiddenChance = 0.14f; p.fill = 0.86f; }
             else if (n <= 25)  { p.width = 6; p.height = 7; p.colors = 5; p.longChance = 0.25f; p.maxCapacity = 4; p.locks = 1; p.hiddenChance = 0.15f; p.fill = 0.86f; }
             else if (n <= 30)  { p.width = 6; p.height = 7; p.colors = 5; p.longChance = 0.3f; p.maxCapacity = 4; p.locks = 2; p.hiddenChance = 0.2f; p.fill = 0.88f; }
             else
@@ -84,21 +93,41 @@ namespace Dockside.Core
                 }
             }
 
-            // Sawtooth: spike every 5th level, breather right after.
-            if (n % 5 == 0) p.fill = Math.Min(0.95f, p.fill + 0.06f);
+            // Sawtooth: a hard level every 5th, a breather right after. Up to level 20 a hard level also has one berth
+            // fewer, so it can't be won by tapping matches: what to park, and when, decides it.
+            if (n % 5 == 0)
+            {
+                p.fill = Math.Min(0.95f, p.fill + 0.06f);
+                if (n <= 20) p.berths = 2;
+            }
             if (n % 5 == 1 && n > 1) p.fill = Math.Max(0.7f, p.fill - 0.05f);
             return p;
         }
 
-        /// <summary>Target casual-player win rate for a level: easy tutorial, then a rising curve with spikes every 5th level.</summary>
+        /// <summary>
+        /// Target casual-player win rate (Solver.CasualWinRate) for a level: a gentle first level, then a rising curve,
+        /// a dip on every hard level and a breather after it. Real players also have boosters, Undo and a second chance.
+        /// </summary>
         public static (float min, float max) TargetWinRate(int level)
         {
             int n = Canonical(level);
-            (float min, float max) band = n <= 3 ? (0.6f, 1f) : n <= 10 ? (0.35f, 0.85f) : n <= 20 ? (0.2f, 0.65f) : n <= 30 ? (0.08f, 0.5f)
-                : (0.06f, 0.45f);
-            if (n > 30 && n % 5 == 1) band = (0.2f, 0.6f);   // breather after each spike
-            if (n % 5 == 0) band = (Math.Max(0.03f, band.min - 0.08f), band.max - 0.2f);
+            (float min, float max) band = n == 1 ? (0.9f, 1f) : n == 2 ? (0.8f, 1f) : n <= 4 ? (0.55f, 0.95f) : n <= 10 ? (0.35f, 0.8f)
+                : n <= 20 ? (0.2f, 0.65f) : n <= 30 ? (0.08f, 0.5f) : (0.06f, 0.45f);
+            if (n % 5 == 1 && n > 1) band = n > 30 ? (0.2f, 0.6f) : (Math.Min(0.9f, band.min + 0.15f), Math.Min(1f, band.max + 0.1f));
+            if (n % 5 == 0) band = n == 5 ? (0.25f, 0.5f) : n == 10 ? (0.2f, 0.45f) : (Math.Max(0.03f, band.min - 0.08f), band.max - 0.2f);
             return band;
+        }
+
+        /// <summary>
+        /// Target win rate for a player who never plans (Solver.GreedyWinRate): such a player should get through the
+        /// early normal levels, but a hard level should mostly stop them, so a win there is earned by thinking.
+        /// </summary>
+        public static (float min, float max) TargetGreedyWinRate(int level)
+        {
+            int n = Canonical(level);
+            if (n == 1) return (0.95f, 1f);
+            if (n % 5 == 0) return n <= 30 ? (0f, 0.45f) : (0f, 0.6f);
+            return n <= 4 ? (0.6f, 1f) : n <= 15 ? (0.35f, 1f) : (0f, 1f);
         }
 
         /// <summary>
@@ -112,6 +141,8 @@ namespace Dockside.Core
         {
             var p = ParamsFor(levelNumber, mode);
             var (min, max) = TargetWinRate(levelNumber);
+            var (gMin, gMax) = TargetGreedyWinRate(levelNumber);
+            static float Outside(float v, float lo, float hi) => v < lo ? lo - v : v > hi ? v - hi : 0f;
             LevelData best = null;
             float bestDistance = float.MaxValue;
             for (int attempt = 0; attempt < maxAttempts; attempt++)
@@ -123,8 +154,11 @@ namespace Dockside.Core
                 if (!Solver.Solve(level, 8000).solvable) continue;
                 float rate = Solver.CasualWinRate(level, 40, seed);
                 level.casualWinRate = rate;
-                if (rate >= min && rate <= max) return level;
-                float distance = rate < min ? min - rate : rate - max;
+                float casualMiss = Outside(rate, min, max);
+                // Far off the casual band: keep it only as a fallback, without spending the greedy simulation on it.
+                if (casualMiss <= 0.25f) level.greedyWinRate = Solver.GreedyWinRate(level, 40, seed);
+                float distance = casualMiss + (level.greedyWinRate < 0 ? 1f : Outside(level.greedyWinRate, gMin, gMax));
+                if (distance <= 0f) return level;
                 if (distance < bestDistance) { best = level; bestDistance = distance; }
             }
             if (best != null) return best;

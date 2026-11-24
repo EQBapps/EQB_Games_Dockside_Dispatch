@@ -17,12 +17,19 @@ namespace Dockside
     {
         public static readonly Color LoadAccent = Palette.Hex("2F7FE0"), UnloadAccent = Palette.Hex("EE8A2B");
         private const float CardPitch = 1000f, SwipeThreshold = 110f;
+        // Landscape: both cards side by side (scaled down). The selected one is larger and ringed in its mode's colour; the
+        // other keeps its colours (so it never looks locked), a little smaller.
+        private const float LandPitch = 700f, LandScale = 0.74f, LandSelected = 0.84f;
 
         public event Action<GameMode> ModeChanged;   // the scene behind should switch to this mode
         public event Action<GameMode> PlayClicked;
 
         private Palette _pal;
-        private RectTransform _cards, _ribbon;
+        private RectTransform _cards, _ribbon, _logo, _viewport, _dotsBg, _dotsRow;
+        private readonly RectTransform[] _cardRts = new RectTransform[2];
+        private readonly Image[] _rings = new Image[2];
+        private bool? _landscape;
+        private int _shownFrame;
         private Image _ribbonImg, _playImg, _fade;
         private Text _playText;
         private readonly Image[] _dots = new Image[2];
@@ -65,6 +72,7 @@ namespace Dockside
 
             // ---- Logo: "DOCKSIDE" in cream with a deep shadow, "DISPATCH" on a ribbon in the mode's colour ----
             var logo = UiFactory.Rect("Logo", safe, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -70), new Vector2(900, 330));
+            _logo = logo;
             var top = UiFactory.Rect("Dockside", logo, new Vector2(0, 0.5f), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             var t1 = UiFactory.Label("Text", top, "DOCKSIDE", 150, pal.uiCream);
             Outline(t1, Palette.Hex("3A2A28"), 6f);
@@ -79,6 +87,7 @@ namespace Dockside
 
             // ---- Cards ----
             var viewport = UiFactory.Rect("Viewport", safe, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 430), new Vector2(1080, 640));
+            _viewport = viewport;
             _cards = UiFactory.Rect("Cards", viewport, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10, 10));
             BuildCard(0, GameMode.Load, "LOAD", "Clear the yard: send every container to the ship of its colour.");
             BuildCard(1, GameMode.Unload, "UNLOAD", "Empty the ship: send every container to the truck of its colour.");
@@ -91,9 +100,11 @@ namespace Dockside
             // Dots sit on a solid cream pill so they never mix with the scene (or the symbols on containers) behind.
             var dotsBg = UiFactory.Panel("DotsBg", safe, pal.uiCream, pal.uiShadow, 6f);
             var dbr = (RectTransform)dotsBg.transform;
+            _dotsBg = dbr;
             dbr.anchorMin = dbr.anchorMax = new Vector2(0.5f, 0); dbr.pivot = new Vector2(0.5f, 0);
             dbr.anchoredPosition = new Vector2(0, 372); dbr.sizeDelta = new Vector2(150, 56);
             var dots = UiFactory.Rect("Dots", safe, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 380), new Vector2(200, 40));
+            _dotsRow = dots;
             for (int i = 0; i < 2; i++)
             {
                 int k = i;
@@ -119,6 +130,44 @@ namespace Dockside
             _fade = fade.gameObject.AddComponent<Image>();
             _fade.color = new Color(0.12f, 0.08f, 0.08f, 0f);
             _fade.raycastTarget = false;
+
+            ApplyLayout(ScreenInfo.Landscape);
+        }
+
+        /// <summary>
+        /// Portrait: one card at a time in a swipeable carousel, with arrows and dots. Landscape: the logo smaller, both
+        /// cards side by side (tap one to pick it), and the Play button under them.
+        /// </summary>
+        private void ApplyLayout(bool landscape)
+        {
+            _landscape = landscape;
+            if (landscape)
+            {
+                _logo.localScale = Vector3.one * 0.8f; _logo.anchoredPosition = new Vector2(0, -30);
+                _viewport.anchoredPosition = new Vector2(0, 250); _viewport.sizeDelta = new Vector2(2 * LandPitch, 560);
+                _play.transform.localScale = Vector3.one * 0.85f;
+                ((RectTransform)_play.transform).anchoredPosition = new Vector2(0, 50);
+                for (int i = 0; i < 2; i++) _cardRts[i].anchoredPosition = new Vector2((i - 0.5f) * LandPitch, 0);
+                _cards.anchoredPosition = Vector2.zero;
+            }
+            else
+            {
+                _logo.localScale = Vector3.one; _logo.anchoredPosition = new Vector2(0, -70);
+                _viewport.anchoredPosition = new Vector2(0, 430); _viewport.sizeDelta = new Vector2(1080, 640);
+                _play.transform.localScale = Vector3.one;
+                ((RectTransform)_play.transform).anchoredPosition = new Vector2(0, 150);
+                for (int i = 0; i < 2; i++)
+                {
+                    _cardRts[i].anchoredPosition = new Vector2(i * CardPitch, 0);
+                    _cardRts[i].localScale = Vector3.one;
+                    _rings[i].enabled = false;
+                }
+                _cardsX = -_index * CardPitch;
+                _cards.anchoredPosition = new Vector2(_cardsX, 0);
+            }
+            _dotsBg.gameObject.SetActive(!landscape);
+            _dotsRow.gameObject.SetActive(!landscape);
+            Refresh();
         }
 
         private void BuildCard(int i, GameMode mode, string title, string body)
@@ -127,6 +176,11 @@ namespace Dockside
             var rt = (RectTransform)card.transform;
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.anchoredPosition = new Vector2(i * CardPitch, 0); rt.sizeDelta = new Vector2(800, 560);
+            _cardRts[i] = rt;
+            // Tapping a card picks its mode (in landscape both are on screen; in portrait it's the one already shown).
+            var pick = card.gameObject.AddComponent<Button>();
+            pick.transition = Selectable.Transition.None;
+            pick.onClick.AddListener(() => Select(i, true));
             // Mode stripe along the top of the card.
             var stripe = UiFactory.Panel("Stripe", rt, Accent(mode));
             var srt = (RectTransform)stripe.transform;
@@ -163,6 +217,16 @@ namespace Dockside
                 UiFactory.Label("Text", tag.transform, "NEW", 38, Color.white);
                 _newBadge = tag.gameObject;
             }
+
+            // Landscape: a thick ring in the mode's colour around the selected card.
+            var ringRt = UiFactory.Rect("SelectedRing", rt, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            ringRt.offsetMin = new Vector2(-18, -26); ringRt.offsetMax = new Vector2(18, 18);
+            var ring = ringRt.gameObject.AddComponent<Image>();
+            ring.sprite = UiFactory.RoundedOutline; ring.type = Image.Type.Sliced; ring.color = Accent(mode);
+            ring.pixelsPerUnitMultiplier = 0.6f;   // a thicker line than the focus ring on buttons
+            ring.raycastTarget = false;
+            ring.enabled = false;
+            _rings[i] = ring;
         }
 
         private Button Arrow(string name, Transform parent, int dir)
@@ -212,8 +276,11 @@ namespace Dockside
         public void Show(GameMode mode)
         {
             gameObject.SetActive(true);
+            _shownFrame = Time.frameCount;
+            var es = EventSystem.current;
+            if (es) es.SetSelectedGameObject(null);   // the menu reads the remote itself; no HUD button stays selected
             _index = (int)mode;
-            _cardsX = -_index * CardPitch;
+            _cardsX = ScreenInfo.Landscape ? 0f : -_index * CardPitch;
             _cards.anchoredPosition = new Vector2(_cardsX, 0);
             _fade.color = new Color(_fade.color.r, _fade.color.g, _fade.color.b, 0f);
             Refresh();
@@ -230,7 +297,8 @@ namespace Dockside
                 bool locked = m == GameMode.Unload && !SaveData.UnloadUnlocked;
                 int level = SaveData.LevelFor(m);
                 int done = Mathf.Clamp(level - 1, 0, LevelGenerator.AuthoredLevelCount);
-                _levelTexts[i].text = locked ? $"Unlocks after Load level {SaveData.UnloadUnlockLevel - 1}" : $"Level {level}";
+                _levelTexts[i].text = locked ? $"Unlocks after Load level {SaveData.UnloadUnlockLevel - 1}"
+                    : LevelGenerator.IsHard(level) ? $"Level {level}  \u00b7  <color=#D94A3D>HARD</color>" : $"Level {level}";
                 float share = locked ? (SaveData.Level - 1f) / (SaveData.UnloadUnlockLevel - 1f) : done / (float)LevelGenerator.AuthoredLevelCount;
                 ((RectTransform)_barFills[i].transform).sizeDelta = new Vector2(Mathf.Max(30f, 560f * Mathf.Clamp01(share)), 0);
                 _dots[i].color = i == _index ? Accent(m) : Palette.Hex("CDBFAE");
@@ -242,8 +310,15 @@ namespace Dockside
             _playImg.color = selLocked ? Palette.Hex("A39A94") : Accent(sel);
             _play.interactable = !selLocked;
             _playText.text = selLocked ? "LOCKED" : $"PLAY LEVEL {SaveData.LevelFor(sel)}";
-            _left.gameObject.SetActive(_index > 0);
-            _right.gameObject.SetActive(_index < 1);
+            bool landscape = _landscape == true;
+            _left.gameObject.SetActive(!landscape && _index > 0);
+            _right.gameObject.SetActive(!landscape && _index < 1);
+            if (landscape)
+                for (int i = 0; i < 2; i++)
+                {
+                    _cardRts[i].localScale = Vector3.one * (i == _index ? LandSelected : LandScale);
+                    _rings[i].enabled = i == _index;
+                }
         }
 
         private void Select(int index, bool animate)
@@ -252,8 +327,9 @@ namespace Dockside
             bool changed = index != _index;
             _index = index;
             if (_slide != null) StopCoroutine(_slide);
-            _slide = StartCoroutine(SlideTo(-_index * CardPitch));
+            if (_landscape != true) _slide = StartCoroutine(SlideTo(-_index * CardPitch));
             Refresh();
+            if (_landscape == true && changed) StartCoroutine(Tween.Pop(_cardRts[_index], 0.05f, 0.2f));
             if (changed)
             {
                 Sfx.Play(Selected == GameMode.Unload ? "berth" : "horn", 0.5f);
@@ -294,6 +370,7 @@ namespace Dockside
 
         public void OnDrag(PointerEventData e)
         {
+            if (_landscape == true) return;   // both cards are on screen: a swipe still picks the other one on release
             float scale = transform.lossyScale.x > 0 ? 1f / transform.lossyScale.x : 1f;
             float dx = (e.position.x - _dragStartX) * scale;
             // Resist dragging past the ends.
@@ -315,18 +392,13 @@ namespace Dockside
 
         private void Update()
         {
-            // Keyboard / controller: left and right step between modes, Enter plays.
-#if ENABLE_INPUT_SYSTEM
-            var kb = UnityEngine.InputSystem.Keyboard.current;
-            if (kb == null) return;
-            if (kb.leftArrowKey.wasPressedThisFrame) Select(_index - 1, true);
-            if (kb.rightArrowKey.wasPressedThisFrame) Select(_index + 1, true);
-            if (kb.enterKey.wasPressedThisFrame) OnPlay();
-#else
-            if (Input.GetKeyDown(KeyCode.LeftArrow)) Select(_index - 1, true);
-            if (Input.GetKeyDown(KeyCode.RightArrow)) Select(_index + 1, true);
-            if (Input.GetKeyDown(KeyCode.Return)) OnPlay();
-#endif
+            if (_landscape != ScreenInfo.Landscape) ApplyLayout(ScreenInfo.Landscape);
+            // Remote, gamepad or keyboard: left and right pick the mode, OK / Enter plays (Back is the game controller's).
+            var move = NavInput.Move;
+            if (move.x < 0) Select(_index - 1, true);
+            else if (move.x > 0) Select(_index + 1, true);
+            // Not on the frame the menu opened: the OK that chose "Modes" on the pause card would also press Play.
+            if (NavInput.Submit && Time.frameCount > _shownFrame + 1) OnPlay();
         }
     }
 }

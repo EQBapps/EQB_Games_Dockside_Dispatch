@@ -59,7 +59,7 @@ Visit 20 famous ports, a new one every 5 levels: Hong Kong, Singapore, Dubai, Mu
 • Relaxing sounds and a cosy, colourful art style
 • Play offline, anytime
 
-Free to play, with optional ads.
+Free to play, with optional ads. One optional purchase removes the ads between levels.
 ```
 
 **Screenshots:** 6.9" iPhone, 1320 × 2868 portrait: the five in [`screenshots/`](screenshots/), in upload order. They show Hong Kong (Load), Singapore (Unload), Amsterdam, Sydney and Shanghai, all captured from the 0.7.4 build with Undo. Apple accepts 1 to 10. iPad screenshots aren't needed while the build is iPhone only.
@@ -101,7 +101,8 @@ Expected rating: 4+.
 ## Other declarations
 - **Export compliance:** the build declares `ITSAppUsesNonExemptEncryption = NO` (the game only uses HTTPS), so App Store Connect doesn't ask again for each build.
 - **EU Digital Services Act:** declare EQB Business Solutions Private Limited as a **trader**. Its address, phone number and email are then shown on the EU App Store.
-- **In-app purchases, subscriptions, in-app events:** none.
+- **In-app purchases:** one non-consumable, product ID `premium_unlock`, reference name "Dockside Premium", display name "Remove ads", description "No more ads between levels. Optional reward videos stay." It must be submitted with the first version that includes it (App Store Connect › the app › Monetization › In-App Purchases). The game has a Restore purchase button on iOS, as Apple requires.
+- **Subscriptions, in-app events:** none.
 
 ## Game Center achievements
 

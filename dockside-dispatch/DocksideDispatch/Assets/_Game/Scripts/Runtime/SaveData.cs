@@ -8,7 +8,24 @@ namespace Dockside
     {
         // "dd.level" stays the Load level so existing players keep their progress.
         private const string LevelKey = "dd.level", UnloadLevelKey = "dd.unload.level", ModeKey = "dd.mode", CoinsKey = "dd.coins", BoosterKey = "dd.booster.";
-        public const int StartingBoosters = 3;
+        /// <summary>
+        /// Boosters of each kind a player starts with: 1 for new players (so boosters mean something, and the early
+        /// levels aren't won on a pile of free help); players who started before 0.7.6 keep their original 3.
+        /// </summary>
+        public static int StartingBoosters
+        {
+            get
+            {
+                if (!PlayerPrefs.HasKey(StartBoostersKey))
+                {
+                    bool returning = PlayerPrefs.HasKey(LevelKey) || PlayerPrefs.HasKey(UnloadLevelKey) || PlayerPrefs.HasKey(CoinsKey);
+                    PlayerPrefs.SetInt(StartBoostersKey, returning ? 3 : 1);
+                    PlayerPrefs.Save();
+                }
+                return PlayerPrefs.GetInt(StartBoostersKey, 1);
+            }
+        }
+        private const string StartBoostersKey = "dd.booster.start";
         /// <summary>Unload opens once Load level 5 is complete (the player has learnt the core rules).</summary>
         public const int UnloadUnlockLevel = 6;
 

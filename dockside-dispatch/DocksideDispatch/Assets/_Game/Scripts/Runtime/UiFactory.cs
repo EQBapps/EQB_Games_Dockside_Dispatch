@@ -43,6 +43,40 @@ namespace Dockside
             }
         }
 
+        private static Sprite _outline;
+
+        /// <summary>White rounded-rectangle outline (the focus ring), 9-sliced, generated at runtime.</summary>
+        public static Sprite RoundedOutline
+        {
+            get
+            {
+                if (_outline) return _outline;
+                const int size = 80, radius = 32;
+                const float thickness = 9f;
+                var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                var px = new Color32[size * size];
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // Signed distance to the rounded rectangle's edge (negative inside).
+                    float qx = Mathf.Abs(x + 0.5f - size * 0.5f) - (size * 0.5f - radius);
+                    float qy = Mathf.Abs(y + 0.5f - size * 0.5f) - (size * 0.5f - radius);
+                    float outside = new Vector2(Mathf.Max(qx, 0), Mathf.Max(qy, 0)).magnitude;
+                    float d = outside + Mathf.Min(Mathf.Max(qx, qy), 0) - radius;
+                    float a = Mathf.Clamp01(0.5f - d) * Mathf.Clamp01(d + thickness + 0.5f);
+                    px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
+                }
+                tex.SetPixels32(px);
+                tex.Apply();
+                _outline = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect,
+                    new Vector4(radius, radius, radius, radius));
+                return _outline;
+            }
+        }
+
+        /// <summary>Colour of the focus ring around the selected button or container (remote, gamepad, keyboard).</summary>
+        public static readonly Color FocusColor = new Color(1f, 0.82f, 0.2f);
+
         private static Sprite _disc;
         private static readonly System.Collections.Generic.Dictionary<int, Sprite> Rings = new System.Collections.Generic.Dictionary<int, Sprite>();
 
@@ -83,8 +117,7 @@ namespace Dockside
             canvas.sortingOrder = 10;
             var scaler = go.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight = 0.5f;
+            go.AddComponent<OrientationScaler>().Apply();
             go.AddComponent<GraphicRaycaster>();
             EnsureEventSystem();
             return canvas;
@@ -162,6 +195,7 @@ namespace Dockside
             b.colors = colors;
             b.onClick.AddListener(() => { Sfx.Play("click", 0.6f, 0f); onClick?.Invoke(); });
             img.gameObject.name = $"Button_{accessibleName}";
+            img.gameObject.AddComponent<FocusRing>();
             return b;
         }
 
@@ -203,6 +237,45 @@ namespace Dockside
                 case "undo": Bar(0.05f, 0.22f, 0.6f, 0.12f); Bar(-0.3f, 0.32f, 0.3f, 0.12f, 40); Bar(-0.3f, 0.12f, 0.3f, 0.12f, -40); Bar(0.3f, 0, 0.12f, 0.5f); Bar(0.05f, -0.22f, 0.6f, 0.12f); break;
                 case "retry": Bar(0, 0.25f, 0.5f, 0.12f); Bar(-0.25f, 0, 0.12f, 0.5f); Bar(0, -0.25f, 0.5f, 0.12f); Bar(0.25f, 0.12f, 0.12f, 0.26f); break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Gold ring around a button while it is selected and the player is using a remote, gamepad or keyboard
+    /// (NavInput.NavMode); the button also grows a little. Touch and mouse players never see it.
+    /// </summary>
+    public class FocusRing : MonoBehaviour
+    {
+        private Image _ring;
+        private Button _button;
+        private bool _on;
+        private Vector3 _baseScale = Vector3.one;
+
+        private void Awake()
+        {
+            _button = GetComponent<Button>();
+            var rt = UiFactory.Rect("FocusRing", transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            rt.offsetMin = new Vector2(-16, -16); rt.offsetMax = new Vector2(16, 16);
+            _ring = rt.gameObject.AddComponent<Image>();
+            _ring.sprite = UiFactory.RoundedOutline;
+            _ring.type = Image.Type.Sliced;
+            _ring.color = UiFactory.FocusColor;
+            _ring.raycastTarget = false;
+            _ring.enabled = false;
+        }
+
+        private void LateUpdate()
+        {
+            var es = EventSystem.current;
+            bool on = NavInput.NavMode && es != null && es.currentSelectedGameObject == gameObject && _button && _button.IsInteractable();
+            if (on != _on)
+            {
+                _on = on;
+                _ring.enabled = on;
+                if (on) { _baseScale = transform.localScale; _ring.transform.SetAsLastSibling(); }
+                else transform.localScale = _baseScale;
+            }
+            if (on) transform.localScale = _baseScale * (MotionPrefs.Reduced ? 1.04f : 1.04f + 0.015f * Mathf.Sin(Time.unscaledTime * 5f));
         }
     }
 }

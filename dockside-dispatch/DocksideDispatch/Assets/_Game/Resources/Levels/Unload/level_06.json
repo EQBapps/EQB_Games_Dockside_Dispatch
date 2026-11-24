@@ -1,36 +1,47 @@
 {
     "levelNumber": 6,
     "mode": 1,
-    "seed": 25168445,
+    "seed": 33546765,
     "width": 5,
     "height": 5,
     "berths": 3,
     "bufferSize": 5,
-    "colorCount": 4,
-    "casualWinRate": 0.949999988079071,
+    "colorCount": 5,
+    "casualWinRate": 0.800000011920929,
+    "greedyWinRate": 0.8500000238418579,
     "containers": [
         {
             "id": 0,
-            "x": 1,
-            "y": 4,
+            "x": 3,
+            "y": 2,
             "length": 2,
-            "color": 0,
+            "color": 2,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
         },
         {
             "id": 1,
-            "x": 2,
-            "y": 3,
-            "length": 1,
-            "color": 0,
+            "x": 0,
+            "y": 0,
+            "length": 2,
+            "color": 3,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
         },
         {
             "id": 2,
+            "x": 3,
+            "y": 0,
+            "length": 1,
+            "color": 2,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 3,
             "x": 4,
             "y": 1,
             "length": 1,
@@ -40,19 +51,9 @@
             "keyId": -1
         },
         {
-            "id": 3,
-            "x": 1,
-            "y": 1,
-            "length": 1,
-            "color": 1,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
             "id": 4,
-            "x": 2,
-            "y": 2,
+            "x": 3,
+            "y": 4,
             "length": 1,
             "color": 3,
             "kind": 0,
@@ -61,30 +62,30 @@
         },
         {
             "id": 5,
-            "x": 1,
-            "y": 0,
-            "length": 1,
-            "color": 3,
+            "x": 2,
+            "y": 3,
+            "length": 2,
+            "color": 0,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
         },
         {
             "id": 6,
-            "x": 0,
-            "y": 2,
-            "length": 2,
-            "color": 1,
+            "x": 3,
+            "y": 1,
+            "length": 1,
+            "color": 0,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
         },
         {
             "id": 7,
-            "x": 3,
-            "y": 2,
+            "x": 1,
+            "y": 3,
             "length": 1,
-            "color": 3,
+            "color": 4,
             "kind": 0,
             "lockId": -1,
             "keyId": -1
@@ -92,7 +93,7 @@
         {
             "id": 8,
             "x": 0,
-            "y": 4,
+            "y": 3,
             "length": 1,
             "color": 1,
             "kind": 0,
@@ -101,7 +102,47 @@
         },
         {
             "id": 9,
-            "x": 4,
+            "x": 1,
+            "y": 4,
+            "length": 2,
+            "color": 3,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 10,
+            "x": 0,
+            "y": 2,
+            "length": 1,
+            "color": 0,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 11,
+            "x": 2,
+            "y": 0,
+            "length": 1,
+            "color": 4,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 12,
+            "x": 1,
+            "y": 1,
+            "length": 2,
+            "color": 2,
+            "kind": 0,
+            "lockId": -1,
+            "keyId": -1
+        },
+        {
+            "id": 13,
+            "x": 0,
             "y": 4,
             "length": 1,
             "color": 2,
@@ -110,69 +151,9 @@
             "keyId": -1
         },
         {
-            "id": 10,
-            "x": 2,
-            "y": 0,
-            "length": 1,
-            "color": 2,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 11,
-            "x": 2,
-            "y": 1,
-            "length": 2,
-            "color": 3,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 12,
-            "x": 0,
-            "y": 1,
-            "length": 1,
-            "color": 1,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 13,
-            "x": 3,
-            "y": 3,
-            "length": 1,
-            "color": 0,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
             "id": 14,
-            "x": 0,
-            "y": 3,
-            "length": 1,
-            "color": 0,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 15,
-            "x": 4,
-            "y": 0,
-            "length": 1,
-            "color": 0,
-            "kind": 0,
-            "lockId": -1,
-            "keyId": -1
-        },
-        {
-            "id": 16,
-            "x": 0,
-            "y": 0,
+            "x": 1,
+            "y": 2,
             "length": 1,
             "color": 1,
             "kind": 0,
@@ -182,6 +163,10 @@
     ],
     "ships": [
         {
+            "color": 2,
+            "capacity": 2
+        },
+        {
             "color": 3,
             "capacity": 2
         },
@@ -191,6 +176,14 @@
         },
         {
             "color": 0,
+            "capacity": 2
+        },
+        {
+            "color": 4,
+            "capacity": 2
+        },
+        {
+            "color": 3,
             "capacity": 2
         },
         {
@@ -198,23 +191,11 @@
             "capacity": 2
         },
         {
-            "color": 1,
-            "capacity": 2
-        },
-        {
-            "color": 0,
-            "capacity": 2
-        },
-        {
             "color": 3,
             "capacity": 2
         },
         {
-            "color": 1,
-            "capacity": 2
-        },
-        {
-            "color": 3,
+            "color": 2,
             "capacity": 2
         },
         {

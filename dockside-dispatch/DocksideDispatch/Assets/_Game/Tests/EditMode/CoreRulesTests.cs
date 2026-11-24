@@ -269,6 +269,27 @@ namespace Dockside.Tests
             }
         }
 
+        /// <summary>The shipped (baked) campaign: hard every 5th level, and a hard level isn't won by just tapping matches.</summary>
+        [Test]
+        public void HardLevelsStopPlayersWhoDontPlan([Values(5, 10, 15, 20, 25, 30)] int n, [Values(GameMode.Load, GameMode.Unload)] GameMode mode)
+        {
+            Assert.IsTrue(LevelGenerator.IsHard(n));
+            Assert.IsFalse(LevelGenerator.IsHard(n + 1));
+            var level = Dockside.LevelRepository.Get(n, mode);
+            Assert.IsTrue(Solver.Solve(level, 8000).solvable, $"{mode} {n} must be solvable");
+            float greedy = Solver.GreedyWinRate(level, 40, level.seed);
+            Assert.LessOrEqual(greedy, 0.5f, $"{mode} {n}: a player who never plans wins {greedy:0.00}");
+            Assert.LessOrEqual(Solver.CasualWinRate(level, 40, level.seed), 0.5f, $"{mode} {n} should be hard");
+        }
+
+        /// <summary>From level 2 there are more colours than ships at the quay, so the holding bay comes into play.</summary>
+        [Test]
+        public void TheBayMattersEarly([Values(2, 3, 4, 5)] int n, [Values(GameMode.Load, GameMode.Unload)] GameMode mode)
+        {
+            var level = Dockside.LevelRepository.Get(n, mode);
+            Assert.Greater(level.colorCount, level.berths, $"{mode} {n}: {level.colorCount} colours, {level.berths} berths");
+        }
+
         [Test]
         public void DifficultyRampsUp()
         {

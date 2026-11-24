@@ -56,6 +56,7 @@ namespace Dockside.Core
         public int bufferSize = 5;
         public int colorCount = 4;
         public float casualWinRate = -1f; // generator's difficulty estimate (share of simulated casual players who win)
+        public float greedyWinRate = -1f; // share won by a player who never plans (always taps any match); low on hard levels
         public List<ContainerSpec> containers = new List<ContainerSpec>();
         public List<ShipSpec> ships = new List<ShipSpec>();
 

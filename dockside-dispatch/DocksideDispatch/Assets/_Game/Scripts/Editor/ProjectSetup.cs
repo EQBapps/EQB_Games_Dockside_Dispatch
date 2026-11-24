@@ -88,7 +88,7 @@ namespace Dockside.EditorTools
             PlayerSettings.productName = ProductName;
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, BundleId);
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, BundleId);
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;   // phones are locked to portrait at runtime (ScreenInfo)
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.bundleVersion = "0.5.1";
@@ -105,6 +105,8 @@ namespace Dockside.EditorTools
         public const string LogoPath = Root + "/Branding/EQB_Games_Logo.png";
         public const string GameLogoPath = Root + "/Branding/DocksideDispatch_Logo.png";
         public const string GameIconPath = Root + "/Branding/DocksideDispatch_Icon.png";
+        /// <summary>Android TV / Google TV launcher banner, 320 x 180 (cropped from the Play feature graphic).</summary>
+        public const string TvBannerPath = Root + "/Branding/TV_Banner.png";
 
         /// <summary>
         /// Boot splash: the EQB Games logo, then the Dockside Dispatch logo, on the dusk-plum background
@@ -263,6 +265,46 @@ namespace Dockside.EditorTools
             AssetDatabase.SaveAssets();
             Debug.Log($"[Dockside] iOS: {BundleId} {PlayerSettings.bundleVersion} ({PlayerSettings.iOS.buildNumber}), iPhone only, iOS {IosMinimumVersion}+, " +
                       $"team {(string.IsNullOrEmpty(PlayerSettings.iOS.appleDeveloperTeamID) ? "not set (pick it in Xcode)" : PlayerSettings.iOS.appleDeveloperTeamID)}.");
+        }
+
+        /// <summary>
+        /// Big screens and TV (Android): the manifest allows every orientation (phones are locked to portrait at runtime by
+        /// ScreenInfo), and the game is listed on Android TV / Google TV with its launcher banner. ARM only (64- and
+        /// 32-bit): Unity 6.3 no longer builds x86-64 for Android (it is kept for Magic Leap only); Chromebooks and Google
+        /// Play Games on PC run ARM games through their own translation.
+        /// </summary>
+        public static void ConfigureBigScreensAndTv()
+        {
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
+            PlayerSettings.allowedAutorotateToPortrait = PlayerSettings.allowedAutorotateToPortraitUpsideDown = true;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = PlayerSettings.allowedAutorotateToLandscapeRight = true;
+            // ARMv7 as well: many TVs (and older tablets) run a 32-bit Android even on a 64-bit chip, and refuse an
+            // ARM64-only app. Play delivers each device only its own half of the bundle.
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
+            // OpenGL ES 3.0 first, Vulkan second: budget TV chips often ship a Vulkan driver that fails to start ("Unable to
+            // initialize the Unity Engine Graphics API"), and this game gains nothing from Vulkan on phones.
+            PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,
+                new[] { UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3, UnityEngine.Rendering.GraphicsDeviceType.Vulkan });
+            PlayerSettings.Android.androidTVCompatibility = true;
+            var banner = AssetDatabase.LoadAssetAtPath<Texture2D>(TvBannerPath);
+            if (banner == null) Debug.LogError($"[Dockside] TV banner missing: {TvBannerPath}");
+            else
+            {
+                // The banner switch and list have no public API: set them on the PlayerSettings asset directly.
+                var settings = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0];
+                var so = new SerializedObject(settings);
+                var enable = so.FindProperty("androidEnableBanner");
+                if (enable != null) enable.boolValue = true;
+                var banners = so.FindProperty("m_AndroidBanners");
+                if (banners != null && banners.arraySize > 0)
+                {
+                    banners.GetArrayElementAtIndex(0).FindPropertyRelative("banner").objectReferenceValue = banner;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+                else Debug.LogError("[Dockside] PlayerSettings has no Android banner slot.");
+            }
+            AssetDatabase.SaveAssets();
         }
 
         /// <summary>Writes the LevelPlay app keys and ad unit IDs (both platforms) into the Main scene's Game object.</summary>

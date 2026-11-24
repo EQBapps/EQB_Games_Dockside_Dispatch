@@ -100,7 +100,7 @@ namespace Dockside
                 hasHidden |= c.kind == ContainerKind.Hidden;
             }
             if (!Unload && levelNumber == 1 && !Seen(LoadIntroKey))
-                yield return Card(LoadIntroKey, null, "How to play", "Tap a container to load the ship of its colour. Full ships sail away.", DemoKind.Basics);
+                yield return Card(LoadIntroKey, null, "How to play", $"{NavInput.Tap} a container to load the ship of its colour. Full ships sail away.", DemoKind.Basics);
             if (Unload && levelNumber == 1 && !Seen(UnloadIntroKey))
                 yield return Card(UnloadIntroKey, "NEW MODE", "Unload", "Send each container to the truck of its colour. Full trucks drive off.", DemoKind.Basics);
             if (hasLong && !Seen(LongKey))
@@ -126,7 +126,7 @@ namespace Dockside
                     }
                 }
                 if (best >= 0)
-                    ShowPointer(() => containerPosition(best), $"Tap to load the same-colour {Vehicle}");
+                    ShowPointer(() => containerPosition(best), $"{NavInput.Tap} to load the same-colour {Vehicle}");
             }
         }
 
@@ -155,7 +155,7 @@ namespace Dockside
             var (title, caption, demo) = type switch
             {
                 BoosterType.ExtraBerth => ("Extra Berth", "Adds a holding-bay slot for the rest of the level.", DemoKind.ExtraBerth),
-                BoosterType.CraneLift => ("Crane Lift", "Tap Crane Lift, then a boxed-in container to lift it out.", DemoKind.CraneLift),
+                BoosterType.CraneLift => ("Crane Lift", $"{NavInput.Tap} Crane Lift, then a boxed-in container to lift it out.", DemoKind.CraneLift),
                 _ => ("Undo", "Takes back your last move, even the one that filled the bay.", DemoKind.Undo),
             };
             Analytics.Event("booster_intro", ("booster", type), ("mode", _mode));

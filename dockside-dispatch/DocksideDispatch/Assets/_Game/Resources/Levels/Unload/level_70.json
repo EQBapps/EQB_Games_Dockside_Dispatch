@@ -8,6 +8,7 @@
     "bufferSize": 5,
     "colorCount": 5,
     "casualWinRate": 0.2750000059604645,
+    "greedyWinRate": 0.25,
     "containers": [
         {
             "id": 0,

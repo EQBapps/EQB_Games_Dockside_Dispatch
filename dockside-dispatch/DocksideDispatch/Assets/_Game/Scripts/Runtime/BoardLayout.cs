@@ -87,9 +87,10 @@ namespace Dockside
         }
 
         /// <summary>
-        /// Fits an orthographic camera (pitched down by pitchDeg) so the whole board shows between the HUD bars.
+        /// Fits an orthographic camera (pitched down by pitchDeg) so the whole board shows between the HUD bars, and in
+        /// landscape between the HUD's side columns (sideMargin: share of the width each one covers).
         /// </summary>
-        public void FitCamera(Camera cam, float pitchDeg, float topMargin, float bottomMargin)
+        public void FitCamera(Camera cam, float pitchDeg, float topMargin, float bottomMargin, float sideMargin = 0f)
         {
             cam.orthographic = true;
             cam.transform.rotation = Quaternion.Euler(pitchDeg, 0f, 0f);
@@ -101,7 +102,7 @@ namespace Dockside
             float vMax = Vector3.Dot(new Vector3(0, EnvironmentBuilder.WaterY, EnvironmentBuilder.WaterEdgeZ), up) + 1.4f;
             float usable = 1f - topMargin - bottomMargin;
             float sizeForHeight = (vMax - vMin) / (2f * usable);
-            float sizeForWidth = ContentHalfWidth / Mathf.Max(0.1f, cam.aspect);
+            float sizeForWidth = ContentHalfWidth / Mathf.Max(0.1f, cam.aspect * (1f - 2f * sideMargin));
             float size = Mathf.Max(sizeForHeight, sizeForWidth);
             cam.orthographicSize = size;
 

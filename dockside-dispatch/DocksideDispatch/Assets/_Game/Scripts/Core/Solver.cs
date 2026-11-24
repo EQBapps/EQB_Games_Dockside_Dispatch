@@ -88,6 +88,32 @@ namespace Dockside.Core
             return wins / (float)trials;
         }
 
+        /// <summary>
+        /// Skill check: share of games won by a player who never plans. They always tap some container that can go
+        /// straight onto a waiting ship (any of them, at random), and only park (at random) when none can.
+        /// A normal level should mostly let this player through; a hard level should mostly stop them, so that
+        /// thinking about what to park, and when, is what wins it.
+        /// </summary>
+        public static float GreedyWinRate(LevelData level, int trials, int seed)
+        {
+            var rng = new System.Random(seed ^ 0x5bd1e995);
+            int wins = 0;
+            var root = new GameSession(level) { RecordEvents = false };
+            for (int t = 0; t < trials; t++)
+            {
+                var s = root.Clone();
+                while (!s.IsOver)
+                {
+                    var moves = s.LegalMoves();
+                    if (moves.Count == 0) break;
+                    var direct = moves.FindAll(m => s.BerthFor(m) >= 0);
+                    s.Tap(direct.Count > 0 ? direct[rng.Next(direct.Count)] : moves[rng.Next(moves.Count)]);
+                }
+                if (s.IsWon) wins++;
+            }
+            return wins / (float)trials;
+        }
+
         /// <summary>Higher is tried first: loading a ship beats parking; park colours that are needed soon.</summary>
         private static int Score(GameSession s, int containerIndex)
         {

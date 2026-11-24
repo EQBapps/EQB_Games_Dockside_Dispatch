@@ -52,7 +52,7 @@ namespace Dockside
         }
 
         /// <summary>True when the first-launch consent question still has to be shown.</summary>
-        public static bool NeedsGdprAnswer => GdprApplies && GdprAnswer < 0;
+        public static bool NeedsGdprAnswer => Monetization.AdsAllowed && GdprApplies && GdprAnswer < 0;
 
         /// <summary>Ads may initialize once no required question is outstanding.</summary>
         public static bool Ready => !NeedsGdprAnswer;

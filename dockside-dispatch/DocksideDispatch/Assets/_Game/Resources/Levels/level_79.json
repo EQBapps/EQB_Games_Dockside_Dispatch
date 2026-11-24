@@ -1,5 +1,6 @@
 {
     "levelNumber": 79,
+    "mode": 0,
     "seed": 625601,
     "width": 6,
     "height": 7,
@@ -7,6 +8,7 @@
     "bufferSize": 5,
     "colorCount": 5,
     "casualWinRate": 0.44999998807907107,
+    "greedyWinRate": 0.574999988079071,
     "containers": [
         {
             "id": 0,

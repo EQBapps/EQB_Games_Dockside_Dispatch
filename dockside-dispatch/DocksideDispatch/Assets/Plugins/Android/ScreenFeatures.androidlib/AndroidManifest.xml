@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The game is locked to portrait, and Android reads a portrait-locked activity as needing a portrait screen
+     (android.hardware.screen.portrait), so Play hides the game from devices that don't report one: some
+     tablets, Chromebooks and Play Games on PC, Android XR. Marking it optional keeps those devices in; they
+     show the game in a portrait window, and it is still portrait-only on phones. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.eqbbusiness.docksidedispatch.screenfeatures">
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+    <!-- Android TV / Google TV: the same app runs on TVs (leanback launcher, banner: Player Settings), but doesn't need one. -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+</manifest>

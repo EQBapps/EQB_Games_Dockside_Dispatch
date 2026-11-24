@@ -8,11 +8,21 @@ namespace Dockside
 {
     public enum BoosterType { ExtraBerth, CraneLift, Undo }
 
-    /// <summary>Top bar (pause, level, coins), booster bar, toasts and the win / lose / pause panels.</summary>
+    /// <summary>
+    /// Top bar (pause, level, coins), booster bar, toasts and the win / lose / pause panels.
+    /// Portrait: the bar across the top and the booster bar along the bottom. Landscape (tablets, Chromebooks, PC, TV):
+    /// side columns, pause and level on the left, coins and the boosters on the right, so the board gets the full height.
+    /// </summary>
     public class HudView : MonoBehaviour
     {
-        public const float TopMargin = 0.11f;     // share of screen height the top bar covers
-        public const float BottomMargin = 0.13f;  // share of screen height the booster bar covers
+        /// <summary>Share of the screen's height the HUD covers at the top; the board camera keeps the board below it.</summary>
+        public static float TopMargin => ScreenInfo.Landscape ? 0.03f + ScreenInfo.OverscanY : 0.11f;
+        /// <summary>Share of the screen's height the booster bar covers at the bottom.</summary>
+        public static float BottomMargin => ScreenInfo.Landscape ? 0.03f + ScreenInfo.OverscanY : 0.13f;
+        /// <summary>Share of the screen's width each side column covers in landscape (0 in portrait).</summary>
+        public static float SideMargin => ScreenInfo.Landscape
+            ? SideColumn * ScreenInfo.CanvasScale / Mathf.Max(1f, Screen.width) + ScreenInfo.OverscanX : 0f;
+        private const float SideColumn = 340f;   // canvas units: 24 margin + a 300-wide level pill / 260-wide booster + room for badges
 
         public event Action PauseClicked;
         public event Action<BoosterType> BoosterClicked;
@@ -24,6 +34,18 @@ namespace Dockside
         private readonly Dictionary<BoosterType, Image> _boosterBg = new Dictionary<BoosterType, Image>();
         private RectTransform _overlay;
         private Coroutine _toastRoutine;
+        // Laid out again whenever the screen turns between portrait and landscape (ApplyLayout).
+        private RectTransform _levelPill, _bar, _hintPanel, _toastPanel;
+        private Image _barBg;
+        private readonly List<RectTransform> _boosters = new List<RectTransform>();
+        private readonly List<(RectTransform icon, Text label, RectTransform badge, Text count)> _boosterParts =
+            new List<(RectTransform, Text, RectTransform, Text)>();
+        private RectTransform _pauseButton, _coinPill;
+        private GameObject _hardTag;
+        private bool? _landscape;
+        // Remote / gamepad / keyboard: the gold cursor over the board, and what Back does on the card that is open.
+        private RectTransform _boardFocus;
+        private Action _cancel;
 
         public static HudView Create(Palette pal)
         {
@@ -46,20 +68,30 @@ namespace Dockside
             var prt = (RectTransform)pause.transform;
             prt.anchorMin = prt.anchorMax = new Vector2(0, 0.5f); prt.pivot = new Vector2(0, 0.5f);
             prt.anchoredPosition = Vector2.zero; prt.sizeDelta = new Vector2(120, 120);
+            _pauseButton = prt;
             UiFactory.Icon("pause", pause.transform, pal.uiText, 70);
 
             var levelPill = UiFactory.Panel("LevelPill", top, pal.uiCream, pal.uiShadow);
             var lrt = (RectTransform)levelPill.transform;
-            lrt.anchorMin = lrt.anchorMax = new Vector2(0.5f, 0.5f); lrt.sizeDelta = new Vector2(330, 140);
+            _levelPill = lrt;
             var lvlBox = UiFactory.Rect("LevelText", levelPill.transform, new Vector2(0, 0.42f), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             _level = UiFactory.Label("Level", lvlBox, "LEVEL 1", 50, pal.uiText);
             var shipsBox = UiFactory.Rect("ShipsText", levelPill.transform, new Vector2(0, 0.06f), new Vector2(1, 0.46f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             _ships = UiFactory.Label("Ships", shipsBox, "Ships 0 of 0", 32, pal.uiSubText, TextAnchor.MiddleCenter, FontStyle.Normal);
+            // "HARD" tag astride the pill's top edge on every 5th level: red, with the word (not colour alone).
+            var hardTag = UiFactory.Panel("HardTag", levelPill.transform, Palette.Hex("D94A3D"), Palette.Hex("2E2422"), 4f);
+            var hrt0 = (RectTransform)hardTag.transform;
+            hrt0.anchorMin = hrt0.anchorMax = new Vector2(0.5f, 1); hrt0.pivot = new Vector2(0.5f, 0.5f);
+            hrt0.anchoredPosition = new Vector2(0, 2); hrt0.sizeDelta = new Vector2(124, 44);
+            UiFactory.Label("Text", hardTag.transform, "HARD", 30, Color.white);
+            _hardTag = hardTag.gameObject;
+            _hardTag.SetActive(false);
 
             var coinPill = UiFactory.Panel("CoinPill", top, pal.uiCream, pal.uiShadow);
             var crt = (RectTransform)coinPill.transform;
             crt.anchorMin = crt.anchorMax = new Vector2(1, 0.5f); crt.pivot = new Vector2(1, 0.5f);
             crt.anchoredPosition = Vector2.zero; crt.sizeDelta = new Vector2(250, 104);
+            _coinPill = crt;
             var coin = UiFactory.Panel("Coin", coinPill.transform, Palette.Hex("F7C431"), Palette.Hex("C9952A"), 6f);
             var cort = (RectTransform)coin.transform;
             cort.anchorMin = cort.anchorMax = new Vector2(0, 0.5f); cort.pivot = new Vector2(0, 0.5f);
@@ -72,61 +104,209 @@ namespace Dockside
             var hintPanel = UiFactory.Panel("CraneHint", safe, pal.uiAccent, Palette.Darken(pal.uiAccent, 0.3f), 6f);
             var hrt = (RectTransform)hintPanel.transform;
             hrt.anchorMin = hrt.anchorMax = new Vector2(0.5f, 1); hrt.pivot = new Vector2(0.5f, 1);
-            hrt.anchoredPosition = new Vector2(0, -196); hrt.sizeDelta = new Vector2(760, 84);
-            _hint = UiFactory.Label("Hint", hintPanel.transform, "Crane Lift: tap any container", 38, Color.white);
+            hrt.sizeDelta = new Vector2(760, 84);
+            _hintPanel = hrt;
+            _hint = UiFactory.Label("Hint", hintPanel.transform, $"Crane Lift: {NavInput.tap} any container", 38, Color.white);
             hintPanel.gameObject.SetActive(false);
 
             // ---- Booster bar ----
             var bar = UiFactory.Panel("BoosterBar", safe, pal.uiBar);
-            var brt = (RectTransform)bar.transform;
-            brt.anchorMin = new Vector2(0, 0); brt.anchorMax = new Vector2(1, 0); brt.pivot = new Vector2(0.5f, 0);
-            brt.anchoredPosition = new Vector2(0, -30); brt.sizeDelta = new Vector2(60, 270);
-            var row = UiFactory.Rect("Row", bar.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 14), new Vector2(900, 170));
-            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
-            layout.spacing = 42; layout.childAlignment = TextAnchor.MiddleCenter;
-            layout.childControlWidth = layout.childControlHeight = false;
-            AddBooster(row, BoosterType.ExtraBerth, "berth", "Extra Berth");
-            AddBooster(row, BoosterType.CraneLift, "crane", "Crane Lift");
-            AddBooster(row, BoosterType.Undo, "undo", "Undo");
+            _bar = (RectTransform)bar.transform;
+            _barBg = bar;
+            AddBooster(_bar, BoosterType.ExtraBerth, "berth", "Extra Berth");
+            AddBooster(_bar, BoosterType.CraneLift, "crane", "Crane Lift");
+            AddBooster(_bar, BoosterType.Undo, "undo", "Undo");
 
             // ---- Toast ----
             var toast = UiFactory.Panel("Toast", safe, new Color(0.18f, 0.13f, 0.12f, 0.9f));
             var trt = (RectTransform)toast.transform;
             trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0); trt.pivot = new Vector2(0.5f, 0);
-            trt.anchoredPosition = new Vector2(0, 290); trt.sizeDelta = new Vector2(940, 150);
+            trt.sizeDelta = new Vector2(940, 150);
+            _toastPanel = trt;
             _toast = UiFactory.Label("ToastText", toast.transform, "", 36, Color.white);
             ((RectTransform)_toast.transform).offsetMin = new Vector2(30, 8); ((RectTransform)_toast.transform).offsetMax = new Vector2(-30, -8);
             _toastGroup = toast.gameObject.AddComponent<CanvasGroup>();
             _toastGroup.alpha = 0; _toastGroup.blocksRaycasts = false;
+
+            // ---- Board cursor (remote, gamepad, keyboard): a gold ring over the container in focus, under any card ----
+            _boardFocus = UiFactory.Rect("BoardFocus", root, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(100, 100));
+            var bf = _boardFocus.gameObject.AddComponent<Image>();
+            bf.sprite = UiFactory.RoundedOutline; bf.type = Image.Type.Sliced; bf.color = UiFactory.FocusColor; bf.raycastTarget = false;
+            _boardFocus.gameObject.SetActive(false);
 
             // ---- Modal overlay (win / lose / pause) ----
             _overlay = UiFactory.Rect("Overlay", root, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             var dim = _overlay.gameObject.AddComponent<Image>();
             dim.color = new Color(0.12f, 0.07f, 0.06f, 0.55f);
             _overlay.gameObject.SetActive(false);
+
+            ApplyLayout(ScreenInfo.Landscape);
+        }
+
+        private const float BoosterW = 260, BoosterH = 170;
+
+        private void Update()
+        {
+            // Tablets, Chromebooks and PC windows can turn or be resized at any time.
+            if (_landscape != ScreenInfo.Landscape) ApplyLayout(ScreenInfo.Landscape);
+
+            // Remote / gamepad: a card that opens gets its top button selected, so OK always does something sensible.
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es == null) return;
+            var sel = es.currentSelectedGameObject;
+            if (IsModalOpen)
+            {
+                if (NavInput.NavMode && (sel == null || !sel.activeInHierarchy || !sel.transform.IsChildOf(_overlay)))
+                {
+                    foreach (var b in _overlay.GetComponentsInChildren<Button>())
+                        if (b.IsInteractable() && b.GetComponent<FocusRing>()) { es.SetSelectedGameObject(b.gameObject); break; }
+                }
+            }
+            else if (sel != null && (!sel.activeInHierarchy || sel.transform.IsChildOf(_overlay))) es.SetSelectedGameObject(null);
+            if (_boardFocus.gameObject.activeSelf && !MotionPrefs.Reduced)
+                _boardFocus.localScale = Vector3.one * (1f + 0.04f * Mathf.Sin(Time.unscaledTime * 5f));
+        }
+
+        /// <summary>Back on the remote / gamepad / keyboard while a card is open: the card's own way out, if it has one.</summary>
+        public void Cancel() => _cancel?.Invoke();
+
+        /// <summary>The gold cursor over the board, around a screen rectangle in pixels (null hides it).</summary>
+        public void SetBoardFocus(Rect? pixels)
+        {
+            _boardFocus.gameObject.SetActive(pixels.HasValue);
+            if (!pixels.HasValue) return;
+            var r = pixels.Value;
+            float k = 1f / ScreenInfo.CanvasScale;
+            const float Pad = 14f;
+            _boardFocus.anchoredPosition = new Vector2((r.center.x - Screen.width * 0.5f) * k, (r.center.y - Screen.height * 0.5f) * k);
+            _boardFocus.sizeDelta = new Vector2(r.width * k + 2 * Pad, r.height * k + 2 * Pad);
+        }
+
+        /// <summary>Index of the booster button the remote / gamepad has selected, or -1.</summary>
+        public int SelectedBooster
+        {
+            get
+            {
+                var es = UnityEngine.EventSystems.EventSystem.current;
+                var sel = es ? es.currentSelectedGameObject : null;
+                for (int i = 0; i < _boosters.Count; i++) if (sel == _boosters[i].gameObject) return i;
+                return -1;
+            }
+        }
+
+        /// <summary>Moves the remote / gamepad selection to a booster (or, with -1, off the HUD and back to the board).</summary>
+        public void SelectBooster(int index)
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es) es.SetSelectedGameObject(index >= 0 && index < _boosters.Count ? _boosters[index].gameObject : null);
+        }
+
+        public int BoosterCount => _boosters.Count;
+
+        /// <summary>Places the level pill, the boosters, the crane hint and toasts for a portrait or a landscape screen.</summary>
+        private void ApplyLayout(bool landscape)
+        {
+            _landscape = landscape;
+            if (landscape)
+            {
+                // A landscape screen is 1080 units tall whatever its size, so the corner pieces come down a little from
+                // their portrait size; on a TV (viewed from the sofa) everything is a fifth larger again.
+                float k = ScreenInfo.IsTv ? 1.2f : 1f;
+                _pauseButton.localScale = Vector3.one * 0.85f * k;
+                _coinPill.localScale = Vector3.one * 0.85f * k;
+                // Left column: the level pill under the pause button.
+                _levelPill.localScale = Vector3.one * 0.85f * k;
+                _levelPill.anchorMin = _levelPill.anchorMax = new Vector2(0, 0.5f); _levelPill.pivot = new Vector2(0, 1);
+                _levelPill.anchoredPosition = new Vector2(0, -66 * k); _levelPill.sizeDelta = new Vector2(300, 140);
+                // Right column: a compact dark rail (the portrait booster bar, turned on its side) with square tiles,
+                // centred on the right edge where a thumb rests on a tablet.
+                const float Tile = 150, Gap = 12, Pad = 14;
+                int n = _boosters.Count;
+                _barBg.enabled = true;
+                _bar.localScale = Vector3.one * k;
+                _bar.anchorMin = _bar.anchorMax = _bar.pivot = new Vector2(1, 0.5f);
+                _bar.anchoredPosition = new Vector2(-24, -30);
+                _bar.sizeDelta = new Vector2(Tile + 2 * Pad, n * Tile + (n - 1) * Gap + 2 * Pad);
+                for (int i = 0; i < n; i++)
+                {
+                    var b = _boosters[i];
+                    b.sizeDelta = new Vector2(Tile, Tile);
+                    b.anchorMin = b.anchorMax = b.pivot = new Vector2(0.5f, 1);
+                    b.anchoredPosition = new Vector2(0, -Pad - i * (Tile + Gap));
+                    var (icon, label, badge, count) = _boosterParts[i];
+                    icon.anchoredPosition = new Vector2(0, 18); icon.localScale = Vector3.one * (60f / 70f);
+                    label.fontSize = 26;
+                    badge.anchoredPosition = new Vector2(-8, -8); badge.sizeDelta = new Vector2(50, 50);
+                    count.fontSize = 28;
+                }
+                _hintPanel.anchoredPosition = new Vector2(0, -40);
+                _toastPanel.anchoredPosition = new Vector2(0, 40);
+            }
+            else
+            {
+                _pauseButton.localScale = _coinPill.localScale = _levelPill.localScale = _bar.localScale = Vector3.one;
+                _levelPill.anchorMin = _levelPill.anchorMax = _levelPill.pivot = new Vector2(0.5f, 0.5f);
+                _levelPill.anchoredPosition = Vector2.zero; _levelPill.sizeDelta = new Vector2(330, 140);
+                // The booster bar along the bottom, its three buttons in a row.
+                const float Gap = 42;
+                _barBg.enabled = true;
+                _bar.anchorMin = new Vector2(0, 0); _bar.anchorMax = new Vector2(1, 0); _bar.pivot = new Vector2(0.5f, 0);
+                _bar.anchoredPosition = new Vector2(0, -30); _bar.sizeDelta = new Vector2(60, 270);
+                for (int i = 0; i < _boosters.Count; i++)
+                {
+                    var b = _boosters[i];
+                    b.sizeDelta = new Vector2(BoosterW, BoosterH);
+                    b.anchorMin = b.anchorMax = b.pivot = new Vector2(0.5f, 0.5f);
+                    b.anchoredPosition = new Vector2((i - (_boosters.Count - 1) * 0.5f) * (BoosterW + Gap), 14);
+                    var (icon, label, badge, count) = _boosterParts[i];
+                    icon.anchoredPosition = new Vector2(0, 22); icon.localScale = Vector3.one;
+                    label.fontSize = 32;
+                    badge.anchoredPosition = new Vector2(-14, -10); badge.sizeDelta = new Vector2(66, 66);
+                    count.fontSize = 36;
+                }
+                _hintPanel.anchoredPosition = new Vector2(0, -196);
+                _toastPanel.anchoredPosition = new Vector2(0, 290);
+            }
+            // Remote / gamepad: step along the boosters (across in portrait, down the column in landscape). Stepping off
+            // towards the board is handled by the game controller, which moves the cursor back onto the containers.
+            for (int i = 0; i < _boosters.Count; i++)
+            {
+                var prev = i > 0 ? _boosters[i - 1].GetComponent<Button>() : null;
+                var next = i < _boosters.Count - 1 ? _boosters[i + 1].GetComponent<Button>() : null;
+                var nav = new Navigation { mode = Navigation.Mode.Explicit };
+                if (landscape) { nav.selectOnUp = prev; nav.selectOnDown = next; }
+                else { nav.selectOnLeft = prev; nav.selectOnRight = next; }
+                _boosters[i].GetComponent<Button>().navigation = nav;
+            }
         }
 
         private void AddBooster(Transform row, BoosterType type, string icon, string label)
         {
             var b = UiFactory.Button(label, row, _pal.uiCream, Palette.Hex("2E2422"), () => BoosterClicked?.Invoke(type), label);
-            ((RectTransform)b.transform).sizeDelta = new Vector2(260, 170);
+            ((RectTransform)b.transform).sizeDelta = new Vector2(BoosterW, BoosterH);
+            _boosters.Add((RectTransform)b.transform);
             var iconHolder = UiFactory.Rect("IconHolder", b.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 22), new Vector2(70, 70));
             UiFactory.Icon(icon, iconHolder, _pal.uiText, 70);
             var lab = UiFactory.Rect("Label", b.transform, new Vector2(0, 0), new Vector2(1, 0.38f), new Vector2(0.5f, 0), new Vector2(0, 8), Vector2.zero);
-            UiFactory.Label("Text", lab, label, 32, _pal.uiText);
+            var labText = UiFactory.Label("Text", lab, label, 32, _pal.uiText);
             var badge = UiFactory.Panel("Badge", b.transform, _pal.uiAccent);
             var bart = (RectTransform)badge.transform;
             bart.anchorMin = bart.anchorMax = new Vector2(1, 1); bart.pivot = new Vector2(0.5f, 0.5f);
             bart.anchoredPosition = new Vector2(-14, -10); bart.sizeDelta = new Vector2(66, 66);
             _boosterCounts[type] = UiFactory.Label("Count", badge.transform, "0", 36, Color.white);
             _boosterBg[type] = b.GetComponent<Image>();
+            _boosterParts.Add((iconHolder, labText, bart, _boosterCounts[type]));
         }
 
         // ------------------------------------------------------------------
         public bool IsModalOpen => _overlay != null && _overlay.gameObject.activeSelf;
         /// <summary>Hides the whole HUD (top bar, boosters, toasts) while the mode menu is open.</summary>
         public void SetVisible(bool visible) => GetComponent<Canvas>().enabled = visible;
-        public void SetLevel(int n) => _level.text = $"LEVEL {n}";
+        public void SetLevel(int n, bool hard = false)
+        {
+            _level.text = $"LEVEL {n}";
+            _hardTag.SetActive(hard);
+        }
         /// <summary>Vehicles sent off so far ("Ships 3 of 10", "Trucks 5 of 18").</summary>
         public void SetShips(int departed, int total, string noun = "Ships") => _ships.text = $"{noun} {departed} of {total}";
         public void SetCoins(int coins) => _coins.text = coins.ToString("N0");
@@ -164,9 +344,9 @@ namespace Dockside
             if (DemoStage.Instance) DemoStage.Instance.Stop();
         }
 
-        public void ShowWin(int level, int coinsEarned, Action next)
+        public void ShowWin(int level, int coinsEarned, bool hard, Action next)
         {
-            var card = Card("Level complete!", $"Level {level} cleared\n+{coinsEarned} coins", 1);
+            var card = Card(hard ? "Hard level cleared!" : "Level complete!", $"Level {level} cleared\n+{coinsEarned} coins", 1);
             AddCardButton(card, "Next level", _pal.uiGood, next, 0);
         }
 
@@ -174,12 +354,14 @@ namespace Dockside
         public void ShowLose(string reason, bool canContinue, Action secondChance, string coinsLabel, bool canAffordCoins,
                              Action continueWithCoins, Action retry, string undoLabel = null, Action undo = null)
         {
-            var card = Card("Out of room!", reason, (canContinue ? 3 : 1) + (undo != null ? 1 : 0));
+            // secondChance is null where there are no videos (TV): the coins option is then the only second chance.
+            bool video = secondChance != null;
+            var card = Card("Out of room!", reason, (canContinue ? (video ? 3 : 2) : 1) + (undo != null ? 1 : 0));
             int i = 0;
             if (undo != null) AddCardButton(card, undoLabel, Palette.Hex("2F7FE0"), undo, i++, "undo");
             if (canContinue)
             {
-                AddCardButton(card, "+2 bay slots", _pal.uiGood, secondChance, i++, "video");
+                if (video) AddCardButton(card, "+2 bay slots", _pal.uiGood, secondChance, i++, "video");
                 AddCardButton(card, coinsLabel, canAffordCoins ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), continueWithCoins, i++, "coin");
             }
             AddCardButton(card, "Retry level", _pal.uiAccent, retry, i, "restart");
@@ -202,10 +384,13 @@ namespace Dockside
         /// <summary>Out of a booster: one more for a video or for coins.</summary>
         public void ShowBoosterOffer(string booster, int price, bool canAfford, Action watchVideo, Action buy, Action cancel)
         {
-            var card = Card($"Out of {booster}", $"You have {SaveData.Coins} coins.", 3);
-            AddCardButton(card, "+1 free", _pal.uiGood, watchVideo, 0, "video");
-            AddCardButton(card, $"+1 for {price}", canAfford ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), buy, 1, "coin");
-            AddCardButton(card, "Not now", Palette.Hex("8A8F98"), cancel, 2);
+            // watchVideo is null where there are no videos (TV).
+            int i = 0;
+            var card = Card($"Out of {booster}", $"You have {SaveData.Coins} coins.", watchVideo != null ? 3 : 2);
+            if (watchVideo != null) AddCardButton(card, "+1 free", _pal.uiGood, watchVideo, i++, "video");
+            AddCardButton(card, $"+1 for {price}", canAfford ? Palette.Hex("E0A526") : Palette.Hex("B9AFA4"), buy, i++, "coin");
+            AddCardButton(card, "Not now", Palette.Hex("8A8F98"), cancel, i);
+            _cancel = cancel;
         }
 
         private RectTransform _banner;
@@ -218,7 +403,9 @@ namespace Dockside
             panel.raycastTarget = false;
             _banner = (RectTransform)panel.transform;
             _banner.anchorMin = _banner.anchorMax = new Vector2(0.5f, 1); _banner.pivot = new Vector2(0.5f, 1);
-            _banner.anchoredPosition = new Vector2(0, -230); _banner.sizeDelta = new Vector2(820, 170);
+            // Under the top bar in portrait; in landscape the top centre is open sky.
+            _banner.anchoredPosition = new Vector2(0, ScreenInfo.Landscape ? -40 - Screen.height * ScreenInfo.OverscanY / ScreenInfo.CanvasScale : -230);
+            _banner.sizeDelta = new Vector2(820, 170);
             var t = UiFactory.Rect("Title", _banner, new Vector2(0, 0.42f), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             UiFactory.Label("TitleText", t, title, 60, _pal.uiCream);
             var st = UiFactory.Rect("Sub", _banner, new Vector2(0, 0.08f), new Vector2(1, 0.45f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
@@ -243,21 +430,12 @@ namespace Dockside
         /// an ON/OFF badge, not colour alone. Test builds get one more row that opens the test tools.
         /// </summary>
         public void ShowPause(string port, Action resume, Action modes, Action achievements, Action privacy, Action restart,
-                              bool soundOn, Action toggleSound, bool remindersOn, Action toggleReminders, Action testTools = null)
+                              bool soundOn, Action toggleSound, bool remindersOn, Action toggleReminders, Action testTools = null,
+                              string premiumLabel = null, Action premium = null)
         {
-            const float TileW = 250, TileH = 210, Gap = 26;
-            float gridTop = 420, gridH = TileH * 2 + Gap;
-            var rt = CardFrame("Paused", port, 900, 0);
-            gridTop += _headerExtra;
-            float height = gridTop + gridH + (testTools != null ? 170 : 0) + 70;
-
-            var resumeBtn = UiFactory.Button("Resume", rt, _pal.uiGood, Palette.Darken(_pal.uiGood, 0.3f), resume, "Resume");
-            var brt = (RectTransform)resumeBtn.transform;
-            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 1);
-            brt.anchoredPosition = new Vector2(0, -250 - _headerExtra); brt.sizeDelta = new Vector2(TileW * 3 + Gap * 2, 140);
-            IconAndLabel(brt, "play", "Resume", 54, 64);
-
-            var tiles = new (string icon, string label, Color color, Action action, string badge)[]
+            const float TileH = 210, Gap = 26, GridW = 250 * 3 + Gap * 2;
+            // Tiles whose action is null don't apply here (on a TV: Privacy, which is about ads, and Reminders).
+            var tiles = new List<(string icon, string label, Color color, Action action, string badge)>
             {
                 ("modes", "Modes", Palette.Hex("EE8A2B"), modes, null),
                 ("trophy", "Awards", Palette.Hex("1B8C8A"), achievements, null),
@@ -266,14 +444,28 @@ namespace Dockside
                 (remindersOn ? "bell_on" : "bell_off", "Reminders", Palette.Hex("2F7FE0"), toggleReminders, remindersOn ? "ON" : "OFF"),
                 ("restart", "Restart", _pal.uiAccent, restart, null),
             };
-            for (int i = 0; i < tiles.Length; i++)
+            tiles.RemoveAll(t => t.action == null);
+            int cols = tiles.Count == 4 ? 2 : 3, rows = (tiles.Count + cols - 1) / cols;
+            float TileW = (GridW - Gap * (cols - 1)) / cols;
+            float gridTop = 420, gridH = TileH * rows + Gap * (rows - 1);
+            var rt = CardFrame("Paused", port, 900, 0);
+            gridTop += _headerExtra;
+            float height = gridTop + gridH + (premium != null ? 170 : 0) + (testTools != null ? 170 : 0) + 70;
+
+            var resumeBtn = UiFactory.Button("Resume", rt, _pal.uiGood, Palette.Darken(_pal.uiGood, 0.3f), resume, "Resume");
+            var brt = (RectTransform)resumeBtn.transform;
+            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0.5f, 1);
+            brt.anchoredPosition = new Vector2(0, -250 - _headerExtra); brt.sizeDelta = new Vector2(GridW, 140);
+            IconAndLabel(brt, "play", "Resume", 54, 64);
+
+            for (int i = 0; i < tiles.Count; i++)
             {
                 var (icon, label, color, action, badge) = tiles[i];
                 var tile = UiFactory.Button(label, rt, color, Palette.Darken(color, 0.3f), action, label);
                 var trt = (RectTransform)tile.transform;
                 trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 1);
                 trt.sizeDelta = new Vector2(TileW, TileH);
-                trt.anchoredPosition = new Vector2((i % 3 - 1) * (TileW + Gap), -gridTop - (i / 3) * (TileH + Gap));
+                trt.anchoredPosition = new Vector2((i % cols - (cols - 1) * 0.5f) * (TileW + Gap), -gridTop - (i / cols) * (TileH + Gap));
                 var ih = UiFactory.Rect("IconHolder", trt, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 26), new Vector2(92, 92));
                 UiFactory.Icon(icon, ih, Color.white, 92);
                 var lab = UiFactory.Rect("Label", trt, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(0, 54));
@@ -288,22 +480,53 @@ namespace Dockside
                 }
             }
 
+            float rowTop = gridTop + gridH + 50;
+            if (premium != null)
+            {
+                // Premium: "Remove ads" on phones and tablets, "Unlock the full game" on a TV. Gold, under the tiles.
+                var gold = Palette.Hex("E0A526");
+                var pb = UiFactory.Button("Premium", rt, gold, Palette.Darken(gold, 0.3f), premium, "Premium");
+                var pt = (RectTransform)pb.transform;
+                pt.anchorMin = pt.anchorMax = pt.pivot = new Vector2(0.5f, 1);
+                pt.anchoredPosition = new Vector2(0, -rowTop); pt.sizeDelta = new Vector2(GridW, 110);
+                IconAndLabel(pt, "star", premiumLabel, 44, 54);
+                rowTop += 170;
+            }
             if (testTools != null)
             {
                 var tools = UiFactory.Button("Test tools", rt, Palette.Hex("8A8F98"), Palette.Darken(Palette.Hex("8A8F98"), 0.3f), testTools, "Test tools");
                 var tt = (RectTransform)tools.transform;
                 tt.anchorMin = tt.anchorMax = tt.pivot = new Vector2(0.5f, 1);
-                tt.anchoredPosition = new Vector2(0, -gridTop - gridH - 50); tt.sizeDelta = new Vector2(TileW * 3 + Gap * 2, 110);
+                tt.anchoredPosition = new Vector2(0, -rowTop); tt.sizeDelta = new Vector2(GridW, 110);
                 UiFactory.Label("Text", tools.transform, "Test tools", 40, Color.white);
             }
             FinishCard(rt, height);
+            _cancel = resume;
+        }
+
+        /// <summary>
+        /// Premium: what it gives on this device, the store's price on the buy button, Restore (App Store only, where it is
+        /// required), and a way out.
+        /// </summary>
+        public void ShowPremium(string title, string body, string buyLabel, Action buy, Action restore, string closeLabel, Action close)
+        {
+            int n = restore != null ? 3 : 2, i = 0;
+            var card = Card(title, body, n);
+            AddCardButton(card, buyLabel, Palette.Hex("E0A526"), buy, i++, "star");
+            if (restore != null) AddCardButton(card, "Restore purchase", Palette.Hex("2F7FE0"), restore, i++);
+            AddCardButton(card, closeLabel, Palette.Hex("8A8F98"), close, i);
+            _cancel = close;
         }
 
         /// <summary>A plain list of buttons (e.g. the test tools), first one on top.</summary>
         public void ShowButtons(string title, string body, System.Collections.Generic.IList<(string label, Color color, Action action)> buttons)
         {
             var card = Card(title, body, buttons.Count);
-            for (int i = 0; i < buttons.Count; i++) AddCardButton(card, buttons[i].label, buttons[i].color, buttons[i].action, i);
+            for (int i = 0; i < buttons.Count; i++)
+            {
+                AddCardButton(card, buttons[i].label, buttons[i].color, buttons[i].action, i);
+                if (buttons[i].label == "Back" || buttons[i].label == "Close") _cancel = buttons[i].action;
+            }
         }
 
         /// <summary>First-launch GDPR question (players in the EU/EEA, UK and Switzerland).</summary>
@@ -323,6 +546,7 @@ namespace Dockside
             AddCardButton(card, gdprLabel, Palette.Hex("2F7FE0"), toggleGdpr, 0);
             AddCardButton(card, ccpaLabel, Palette.Hex("2F7FE0"), toggleCcpa, 1);
             AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 2);
+            _cancel = back;
         }
 
         /// <summary>Our own opt-in for reminders, shown before Android's permission dialog (never at first launch).</summary>
@@ -332,6 +556,7 @@ namespace Dockside
                 "We'll nudge you when ships are waiting. At most once a day, never at night.", 2);
             AddCardButton(card, "Yes, remind me", _pal.uiGood, yes, 0);
             AddCardButton(card, "Not now", Palette.Hex("8A8F98"), notNow, 1);
+            _cancel = notNow;
         }
 
         /// <summary>Reminders were switched on but Android won't show them: point the player to the app's notification settings.</summary>
@@ -341,6 +566,7 @@ namespace Dockside
                 "Notifications for this game are off in your phone's settings.", 2);
             AddCardButton(card, "Open settings", _pal.uiGood, openSettings, 0);
             AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 1);
+            _cancel = back;
         }
 
         private int _cardButtons;
@@ -374,6 +600,7 @@ namespace Dockside
         {
             const float TitleH = 110, TitleMax = 76, TitleMin = 60, EyebrowH = 54, EyebrowGap = 4;
             HidePanels();
+            _cancel = null;
             _overlay.gameObject.SetActive(true);
             var card = UiFactory.Panel("Card", _overlay, _pal.uiCream, _pal.uiShadow, 16f);
             var rt = (RectTransform)card.transform;
@@ -423,7 +650,7 @@ namespace Dockside
             var area = _overlay.rect;
             if (area.width > 1 && area.height > 1 && Screen.width > 0 && Screen.height > 0)
             {
-                var safe = Screen.safeArea;
+                var safe = ScreenInfo.SafeArea;
                 float sx = area.width / Screen.width, sy = area.height / Screen.height;
                 float availW = safe.width * sx - 2 * MarginX, availH = safe.height * sy - 2 * MarginY;
                 scale = Mathf.Min(1f, availW / rt.sizeDelta.x, availH / height);
@@ -491,6 +718,7 @@ namespace Dockside
             float capH = Mathf.Max(CaptionMin, TextHeight(ct, Width - 90) + 20);
             cap.sizeDelta = new Vector2(-90, capH);
             for (int i = 0; i < n; i++) AddCardButton(rt, buttons[i].label, buttons[i].color, buttons[i].action, i);
+            if (n == 1) _cancel = buttons[0].action;   // a tutorial card's "Got it"
             FinishCard(rt, top + 5 + ScreenH + 150 + (capH - CaptionMin) + n * ButtonStep + 50);
             return rt;
         }
@@ -542,6 +770,7 @@ namespace Dockside
             }
             AddCardButton(card, "Play this level", _pal.uiGood, () => go(level), 1);
             AddCardButton(card, "Back", Palette.Hex("8A8F98"), back, 2);
+            _cancel = back;
         }
 
         private void AddCardButton(RectTransform card, string label, Color color, Action onClick, int index, string icon = null)
@@ -563,7 +792,7 @@ namespace Dockside
         private Rect _last;
         private void Update()
         {
-            var safe = Screen.safeArea;
+            var safe = ScreenInfo.SafeArea;
             if (safe == _last || Screen.width == 0 || Screen.height == 0) return;
             _last = safe;
             var rt = (RectTransform)transform;

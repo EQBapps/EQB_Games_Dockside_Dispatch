@@ -14,7 +14,7 @@ namespace Dockside
     public class GameController : MonoBehaviour
     {
         public const float CameraPitch = 55f;
-        private const int WinCoins = 20;
+        private static int WinCoins => Monetization.WinCoins;
         /// <summary>Test tools (Go to level, Skip level, Sky preview): editor and test-tools builds only (see BuildFlags).</summary>
         private static bool DevTools => BuildFlags.TestTools;
         /// <summary>Coin prices: boosters when you run out, and a continue after losing (the alternative to a video).</summary>
@@ -86,6 +86,7 @@ namespace Dockside
                 });
             Notifications.Init();
             GameServices.Init();
+            Premium.Init();
         }
 
         // =====================================================================
@@ -102,7 +103,7 @@ namespace Dockside
         private void OnApplicationQuit() => Notifications.OnAppBackgrounded(SaveData.Level, SaveData.UnloadUnlocked && !SaveData.UnloadPlayed);
 
         private bool ReminderOfferDue =>
-            Notifications.ShouldOffer &&
+            !ScreenInfo.IsTv && Notifications.ShouldOffer &&
             ((_mode == GameMode.Load && _levelNumber == ReminderOfferLevel && Notifications.PromptsShown == 0) ||
              (_mode == GameMode.Unload && _levelNumber == 1));
 
@@ -192,12 +193,20 @@ namespace Dockside
             _mode = mode;
             SaveData.Mode = mode;
             Analytics.Event("mode_selected", ("mode", mode), ("level", SaveData.LevelFor(mode)));
-            if (_session == null || _levelNumber != SaveData.LevelFor(mode) || _session.MovesMade > 0) StartLevel(SaveData.LevelFor(mode));
+            if (_session == null || _levelNumber != SaveData.LevelFor(mode) || _session.MovesMade > 0 || Monetization.NeedsPremium(SaveData.LevelFor(mode)))
+                StartLevel(SaveData.LevelFor(mode));
             else BeginPlay();
         }
 
         private void StartLevel(int levelNumber, bool preview)
         {
+            // TV: past the free levels, the level is shown behind the Premium card instead of starting.
+            if (!preview && Monetization.NeedsPremium(levelNumber))
+            {
+                StartLevel(levelNumber, preview: true);
+                ShowPremium(gated: true);
+                return;
+            }
             StopAllCoroutines();
             _pending.Clear();
             _playing = false;
@@ -216,11 +225,12 @@ namespace Dockside
             _rewinding = false;
 
             _levelNumber = levelNumber;
+            _focus = -1;
             BoardLayout.QuayShift = _mode == GameMode.Unload ? BoardLayout.UnloadQuayShift : 0f;
             var level = LevelRepository.Get(levelNumber, _mode);
             _session = new GameSession(level) { KeepHistory = true };   // every move can be taken back with Undo
             _layout = new BoardLayout(level.width, level.height, level.berths);
-            _layout.FitCamera(_cam, CameraPitch, HudView.TopMargin, HudView.BottomMargin);
+            FitBoardCamera();
             _lastAspect = _cam.aspect;
 
             _levelRoot = new GameObject($"Level_{levelNumber}").transform;
@@ -251,7 +261,7 @@ namespace Dockside
             }
 
             _shipsDepartedShown = 0;
-            _hud.SetLevel(levelNumber);
+            _hud.SetLevel(levelNumber, LevelGenerator.IsHard(levelNumber));
             _hud.SetShips(0, _session.ShipsTotal, VehicleNoun);
             RefreshYard();
             if (!preview) BeginPlay();
@@ -261,12 +271,13 @@ namespace Dockside
         private void BeginPlay()
         {
             int levelNumber = _levelNumber;
+            bool hard = LevelGenerator.IsHard(levelNumber);
             // A new port every few levels (the city skyline behind both modes): announce it.
             if (_mode == GameMode.Unload && !SaveData.UnloadPlayed) { SaveData.UnloadPlayed = true; SaveData.UnloadRemindAt = 0; }
             int port = PortSkylines.IndexForLevel(levelNumber);
             bool portBanner = levelNumber == 1 || port != PortSkylines.IndexForLevel(levelNumber - 1);
             // One-time nudge for a player who chose "Keep loading" (not on a level that already announces a new port).
-            if (_mode == GameMode.Load && !portBanner && SaveData.UnloadRemindAt > 0 && levelNumber >= SaveData.UnloadRemindAt && !SaveData.UnloadPlayed)
+            if (_mode == GameMode.Load && !portBanner && !hard && SaveData.UnloadRemindAt > 0 && levelNumber >= SaveData.UnloadRemindAt && !SaveData.UnloadPlayed)
             {
                 SaveData.UnloadRemindAt = 0;
                 _hud.Banner("Unload mode is waiting", "Pause > Game modes");
@@ -279,10 +290,12 @@ namespace Dockside
                     $"Levels {first}-{first + PortSkylines.LevelsPerPort - 1}");
                 Analytics.Event("port_arrival", ("port", PortSkylines.Names[port]), ("level", levelNumber), ("mode", _mode));
             }
+            // Every 5th level is a hard level (the last of each port): say so up front, so a loss feels fair and a win counts.
+            if (hard) _hud.Banner("Hard level", "Plan ahead: park containers in the holding bay");
             _levelStartTime = Time.time;
             var level = _session.Level;
             Analytics.Event("level_start", ("level", levelNumber), ("seed", level.seed), ("containers", level.containers.Count),
-                ("ships", level.ships.Count), ("mode", _mode));
+                ("ships", level.ships.Count), ("mode", _mode), ("hard", hard));
             _tutorial.OnLevelStarted(levelNumber, _mode, _session,
                 i => _containers.TryGetValue(i, out var v) && v && _session.InYard(i) ? v.transform.position + Vector3.up * 0.45f : (Vector3?)null,
                 b => _ships != null && _ships[b] && Vector3.Distance(_ships[b].transform.position, BerthPosition(b)) < 0.3f);
@@ -335,11 +348,21 @@ namespace Dockside
         // =====================================================================
         private void Update()
         {
+            // The screen turned, or a Chromebook / PC window was resized: frame the board again straight away, and rebuild
+            // the scenery (sized to the old screen width) once the size has settled.
             if (_cam && !Mathf.Approximately(_cam.aspect, _lastAspect) && _layout != null)
             {
                 _lastAspect = _cam.aspect;
-                _layout.FitCamera(_cam, CameraPitch, HudView.TopMargin, HudView.BottomMargin);
+                FitBoardCamera();
+                _rebuildSceneryAt = Time.unscaledTime + 0.3f;
             }
+            if (_rebuildSceneryAt > 0 && Time.unscaledTime >= _rebuildSceneryAt)
+            {
+                _rebuildSceneryAt = 0;
+                FitBoardCamera();
+                RebuildEnvironment();
+            }
+            UpdateNav();
             if (_session == null || _session.IsOver || _hud.IsModalOpen || _menuOpen || _rewinding) return;
             if (!TryGetPress(out Vector2 screenPos)) return;
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
@@ -348,6 +371,161 @@ namespace Dockside
             var view = hit.collider.GetComponentInParent<ContainerView>();
             if (view != null) OnContainerTapped(view);
         }
+
+        private float _rebuildSceneryAt;
+
+        // =====================================================================
+        // Remote, gamepad and keyboard: a gold cursor over the containers, the boosters below (or beside) them, and Back
+        // =====================================================================
+        private int _focus = -1;              // container under the cursor, -1 for none
+        private Vector2 _focusScreen;         // where it was, so the cursor lands nearby when that container leaves
+        private int _navBlockedUntil;         // a press that just closed a card or the menu doesn't also hit the board
+
+        private void UpdateNav()
+        {
+            bool busy = _hud.IsModalOpen || _menuOpen;
+            if (busy) _navBlockedUntil = Time.frameCount + 1;
+            if (NavInput.Back) { OnBackPressed(); return; }
+            if (_session == null || _session.IsOver || busy || !NavInput.NavMode)
+            {
+                _hud.SetBoardFocus(null);
+                return;
+            }
+            KeyboardShortcuts();
+            var move = NavInput.Move;
+            if (_hud.SelectedBooster >= 0)
+            {
+                // The UI input module steps along the boosters and presses them; stepping towards the board leaves them.
+                _hud.SetBoardFocus(null);
+                if (ScreenInfo.Landscape ? move.x < 0 : move.y > 0) { _hud.SelectBooster(-1); EnsureFocus(); ShowFocus(); }
+                return;
+            }
+            EnsureFocus();
+            if (move != Vector2Int.zero) MoveFocus(move);
+            if (NavInput.Submit && Time.frameCount > _navBlockedUntil && !_rewinding && _focus >= 0 && _containers.TryGetValue(_focus, out var view))
+                OnContainerTapped(view);
+            ShowFocus();
+        }
+
+        /// <summary>Back: closes the open card (where it has a way out), pauses a level, or leaves the game from the mode menu.</summary>
+        private void OnBackPressed()
+        {
+            if (_hud.IsModalOpen) _hud.Cancel();
+            else if (_menuOpen) LeaveToHome();
+            else if (_session != null && !_session.IsOver) OnPause();
+        }
+
+        /// <summary>Back from the mode menu: send the game to the background, as Android expects of an app's first screen.</summary>
+        private static void LeaveToHome()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                using var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
+                activity.Call<bool>("moveTaskToBack", true);
+            }
+            catch (System.Exception e) { Debug.LogWarning($"[Dockside] moveTaskToBack failed: {e.Message}"); }
+#elif !UNITY_EDITOR && !UNITY_IOS
+            Application.Quit();
+#endif
+        }
+
+        /// <summary>PC and Chromebook keyboards: 1, 2, 3 for the boosters, Z (or Ctrl+Z) to undo.</summary>
+        private void KeyboardShortcuts()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb == null) return;
+            if (kb.digit1Key.wasPressedThisFrame) OnBooster(BoosterType.ExtraBerth);
+            else if (kb.digit2Key.wasPressedThisFrame) OnBooster(BoosterType.CraneLift);
+            else if (kb.digit3Key.wasPressedThisFrame || kb.zKey.wasPressedThisFrame) OnBooster(BoosterType.Undo);
+#endif
+        }
+
+        private Vector2 ContainerScreen(int index) =>
+            _containers.TryGetValue(index, out var v) && v ? (Vector2)_cam.WorldToScreenPoint(v.transform.position) : _focusScreen;
+
+        /// <summary>Keeps the cursor on a container in the yard: the nearest one to where it was, or else one that can move now.</summary>
+        private void EnsureFocus()
+        {
+            if (_focus >= 0 && _session.InYard(_focus) && _containers.ContainsKey(_focus)) return;
+            int best = -1;
+            float bestScore = float.MaxValue;
+            bool hadFocus = _focus >= 0;
+            foreach (var kv in _containers)
+            {
+                if (!_session.InYard(kv.Key) || !kv.Value) continue;
+                float score;
+                if (hadFocus) score = (ContainerScreen(kv.Key) - _focusScreen).sqrMagnitude;
+                else
+                {
+                    // First time: a container that can go now, near the quay and the middle of the yard.
+                    var spec = _session.Spec(kv.Key);
+                    bool free = _session.IsReachable(kv.Key) && !_session.IsLocked(kv.Key);
+                    score = (free ? 0 : 1000) + spec.y * 10 + Mathf.Abs(spec.x + (spec.length - 1) * 0.5f - (_layout.Width - 1) * 0.5f);
+                }
+                if (score < bestScore) { bestScore = score; best = kv.Key; }
+            }
+            _focus = best;
+            if (best >= 0) _focusScreen = ContainerScreen(best);
+        }
+
+        /// <summary>
+        /// Steps the cursor to the nearest container in that direction on screen. Off the bottom of the yard (portrait) or
+        /// its right side (landscape) it moves onto the boosters.
+        /// </summary>
+        private void MoveFocus(Vector2Int dir)
+        {
+            if (_focus < 0) return;
+            Vector2 from = ContainerScreen(_focus), d = new Vector2(dir.x, dir.y);
+            int best = -1;
+            float bestScore = float.MaxValue;
+            foreach (var kv in _containers)
+            {
+                if (kv.Key == _focus || !_session.InYard(kv.Key) || !kv.Value) continue;
+                Vector2 v = ContainerScreen(kv.Key) - from;
+                float along = Vector2.Dot(v, d);
+                if (along < 8f) continue;
+                float across = Mathf.Abs(v.x * d.y - v.y * d.x);
+                if (across > along * 2.5f) continue;
+                float score = along + across * 2f;
+                if (score < bestScore) { bestScore = score; best = kv.Key; }
+            }
+            if (best >= 0)
+            {
+                _focus = best;
+                _focusScreen = ContainerScreen(best);
+                Sfx.Play("click", 0.25f, 0f);
+            }
+            else if (ScreenInfo.Landscape ? dir.x > 0 : dir.y < 0)
+            {
+                _hud.SetBoardFocus(null);
+                _hud.SelectBooster(_hud.BoosterCount / 2);
+            }
+        }
+
+        /// <summary>Draws the gold cursor around the focused container's outline on screen.</summary>
+        private void ShowFocus()
+        {
+            if (_focus < 0 || !_containers.TryGetValue(_focus, out var view) || !view) { _hud.SetBoardFocus(null); return; }
+            var renderers = view.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0) { _hud.SetBoardFocus(null); return; }
+            var b = renderers[0].bounds;
+            foreach (var r in renderers) b.Encapsulate(r.bounds);
+            Vector2 min = new Vector2(float.MaxValue, float.MaxValue), max = new Vector2(float.MinValue, float.MinValue);
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z);
+                Vector2 p = _cam.WorldToScreenPoint(corner);
+                min = Vector2.Min(min, p); max = Vector2.Max(max, p);
+            }
+            _focusScreen = (min + max) * 0.5f;
+            _hud.SetBoardFocus(Rect.MinMaxRect(min.x, min.y, max.x, max.y));
+        }
+
+        private void FitBoardCamera() =>
+            _layout.FitCamera(_cam, CameraPitch, HudView.TopMargin, HudView.BottomMargin, HudView.SideMargin);
 
         private static bool TryGetPress(out Vector2 pos)
         {
@@ -679,15 +857,17 @@ namespace Dockside
         {
             if (_ended) return;
             _ended = true;
-            SaveData.Coins += WinCoins;
+            bool hard = LevelGenerator.IsHard(_levelNumber);
+            int coins = hard ? WinCoins * 3 / 2 : WinCoins;   // hard levels pay half as much again
+            SaveData.Coins += coins;
             _hud.SetCoins(SaveData.Coins);
-            Analytics.Coins(true, WinCoins, "level_reward", $"{(_mode == GameMode.Unload ? "unload_" : "")}level_{_levelNumber:000}");
+            Analytics.Coins(true, coins, "level_reward", $"{(_mode == GameMode.Unload ? "unload_" : "")}level_{_levelNumber:000}");
             bool wasLocked = !SaveData.UnloadUnlocked;
             SaveData.SetLevelFor(_mode, _levelNumber + 1);
             if (wasLocked && SaveData.UnloadUnlocked) Analytics.Event("mode_unlocked", ("mode", GameMode.Unload), ("level", _levelNumber));
             Analytics.Event("level_complete", ("level", _levelNumber), ("moves", _session.MovesMade),
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("boosters", _boostersUsed), ("second_chance", _usedSecondChance),
-                ("mode", _mode));
+                ("mode", _mode), ("hard", hard));
             Sfx.Play("win");
             GameServices.OnLevelWon(_mode, _levelNumber, _boostersUsed, _usedSecondChance, SkyTheme.CurrentPhase == DayPhase.Night);
             // Interstitials start only after level AdManager.InterstitialFromLevel of this mode: the first levels of each
@@ -702,10 +882,10 @@ namespace Dockside
                 if (offerReminders) { StartLevel(SaveData.LevelFor(_mode)); return; }
                 // A capped, opportunistic interstitial between levels; the game never waits for an ad.
                 var ads = AdManager.Instance;
-                if (ads == null || !ads.TryShowInterstitialAfterLevel(_levelNumber, () => StartLevel(SaveData.LevelFor(_mode))))
+                if (!Monetization.Interstitials || ads == null || !ads.TryShowInterstitialAfterLevel(_levelNumber, () => StartLevel(SaveData.LevelFor(_mode))))
                     StartLevel(SaveData.LevelFor(_mode));
             };
-            _hud.ShowWin(_levelNumber, WinCoins, () =>
+            _hud.ShowWin(_levelNumber, coins, hard, () =>
             {
                 if (offerReminders) ShowReminderOffer(next);
                 else next();
@@ -740,7 +920,7 @@ namespace Dockside
                 ("seconds", Mathf.RoundToInt(Time.time - _levelStartTime)), ("second_chance", _usedSecondChance), ("mode", _mode));
             Sfx.Play("lose");
             int undos = SaveData.Boosters(BoosterType.Undo);
-            _hud.ShowLose(reason, !_usedSecondChance, SecondChance,
+            _hud.ShowLose(reason, !_usedSecondChance, Monetization.RewardedVideos ? SecondChance : (System.Action)null,
                 coinsLabel: $"+2 bay slots for {ContinuePrice}", canAffordCoins: SaveData.Coins >= ContinuePrice,
                 continueWithCoins: ContinueWithCoins, retry: () => StartLevel(_levelNumber),
                 undoLabel: $"Undo move ({undos} left)",
@@ -818,7 +998,7 @@ namespace Dockside
                 }
                 int price = BoosterPrice(type);
                 _hud.ShowBoosterOffer(Label(type), price, SaveData.Coins >= price,
-                    watchVideo: () =>
+                    watchVideo: !Monetization.RewardedVideos ? null : () =>
                     {
                         _hud.HidePanels();
                         var ads = AdManager.Instance;
@@ -846,6 +1026,7 @@ namespace Dockside
                     if (_craneArmed) Sfx.Play("crane", 0.8f);
                     _hud.SetCraneHint(_craneArmed);
                     _hud.SetBooster(type, count, _craneArmed);
+                    if (_craneArmed && _hud.SelectedBooster >= 0) _hud.SelectBooster(-1);   // remote: pick the container next
                     break;
                 case BoosterType.Undo:
                     UndoMove(fromLose: false);
@@ -1001,13 +1182,63 @@ namespace Dockside
                     _hud.HidePanels();
                     GameServices.ShowAchievements(failed => _hud.Banner($"Couldn't sign in to {GameServices.ServiceName}", GameServices.SignInHint));
                 },
-                privacy: ShowPrivacy,
+                privacy: Monetization.AdsAllowed ? ShowPrivacy : (System.Action)null,
                 restart: () => StartLevel(_levelNumber),
                 soundOn: Sfx.Enabled,
                 toggleSound: () => { Sfx.Enabled = !Sfx.Enabled; _hud.HidePanels(); OnPause(); },
                 remindersOn: Notifications.Active,
-                toggleReminders: ToggleReminders,
-                testTools: DevTools ? ShowTestTools : (System.Action)null);
+                toggleReminders: ScreenInfo.IsTv ? null : (System.Action)ToggleReminders,
+                testTools: DevTools ? ShowTestTools : (System.Action)null,
+                premiumLabel: ScreenInfo.IsTv ? "Unlock the full game" : "Remove ads",
+                premium: Premium.Owned ? null : (System.Action)(() => ShowPremium(gated: false)));
+        }
+
+        /// <summary>
+        /// The Premium card. Gated (TV, past the free levels): the only ways on are buying, or back to the mode menu.
+        /// Otherwise it was opened from the pause menu and goes back there.
+        /// </summary>
+        private void ShowPremium(bool gated)
+        {
+            bool tv = ScreenInfo.IsTv;
+            string price = Premium.Price;
+            string title = tv ? "Unlock the whole harbour" : "Remove ads";
+            string body = tv
+                ? $"The first {Monetization.TvFreeLevels} levels of each mode are free. One payment unlocks all 20 ports and 200 levels, " +
+                  "and removes the ads between levels on your phone or tablet too."
+                : "One payment, and no more ads between levels on any device with your account. Videos for free boosters " +
+                  "stay, only when you choose them. It also unlocks the full game on Android TV.";
+            string buyLabel = price != null ? (tv ? $"Unlock for {price}" : $"Remove ads for {price}") : (tv ? "Unlock" : "Remove ads");
+            System.Action close = gated ? () => { _hud.HidePanels(); ShowModeMenu(); } : (System.Action)(() => { _hud.HidePanels(); OnPause(); });
+
+            void Done(bool ok, string message)
+            {
+                if (ok || Premium.Owned)
+                {
+                    _hud.HidePanels();
+                    Sfx.Play("unlock");
+                    _hud.Banner("Thank you!", tv ? "The whole harbour is open" : "No more ads between levels");
+                    if (gated) StartLevel(_levelNumber);
+                }
+                else if (message != null) _hud.Toast(message, 3f);
+            }
+#if UNITY_IOS
+            System.Action restore = () => Premium.Restore((ok, msg) => Done(Premium.Owned, Premium.Owned ? null : msg ?? "No purchase found for this Apple ID."));
+#else
+            System.Action restore = null;   // Google Play restores purchases by itself at each launch
+#endif
+            Analytics.Event("premium_offer", ("tv", tv), ("gated", gated), ("level", _levelNumber), ("mode", _mode));
+            _hud.ShowPremium(title, body, buyLabel, () => Premium.Buy(Done), restore, gated ? "Not now" : "Back", close);
+        }
+
+        /// <summary>Test builds: what the remote / gamepad looks like to the game (press a key, then Refresh to see it).</summary>
+        private void ShowInputDevices()
+        {
+            string last = string.IsNullOrEmpty(NavInput.LastKey) ? "none yet" : NavInput.LastKey;
+            _hud.ShowButtons("Input devices", $"{NavInput.DeviceList()}\n\nRecent presses:\n{last}", new List<(string, Color, System.Action)>
+            {
+                ("Refresh", Palette.Hex("2F7FE0"), () => { _hud.HidePanels(); ShowInputDevices(); }),
+                ("Back", Palette.Hex("8A8F98"), () => { _hud.HidePanels(); ShowTestTools(); }),
+            });
         }
 
         /// <summary>Test builds only: the tools that used to crowd the pause menu.</summary>
@@ -1038,6 +1269,11 @@ namespace Dockside
                         PlayerPrefs.DeleteKey("dd.tut." + k);
                     StartLevel(_levelNumber);
                 }),
+                (Premium.Owned ? "Premium: owned (tap to clear)" : "Premium: not owned (tap to own)", blue,
+                    () => { Premium.DevSetOwned(!Premium.Owned); _hud.HidePanels(); ShowTestTools(); }),
+                (PlayerPrefs.GetInt("dev_tv", 0) == 1 ? "TV mode: on (restart the game)" : "TV mode: off (restart the game)", blue,
+                    () => { PlayerPrefs.SetInt("dev_tv", PlayerPrefs.GetInt("dev_tv", 0) == 1 ? 0 : 1); PlayerPrefs.Save(); _hud.HidePanels(); ShowTestTools(); }),
+                ("Input devices", blue, ShowInputDevices),
                 ("Back", grey, () => { _hud.HidePanels(); OnPause(); }),
             });
         }

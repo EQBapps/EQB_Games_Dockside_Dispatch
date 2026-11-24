@@ -128,12 +128,11 @@ namespace Dockside.EditorTools
             EditorUserBuildSettings.buildAppBundle = store;      // APK for sideloading; the Play Store takes an AAB
             EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
-            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            ProjectSetup.ConfigureBigScreensAndTv();   // all orientations (phones locked at runtime), Android TV, ARM64 + ARMv7
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;   // Android 8.0+
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
             PlayerSettings.Android.useCustomKeystore = false;    // Unity's debug key for test APKs; store builds use the upload key below
             PlayerSettings.Android.bundleVersionCode = Math.Max(PlayerSettings.Android.bundleVersionCode, 1);
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
 
             string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "Android"));
             Directory.CreateDirectory(dir);

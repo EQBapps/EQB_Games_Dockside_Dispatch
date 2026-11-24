@@ -41,6 +41,13 @@ namespace Dockside
             LevelPlay.OnInitSuccess += OnInitSuccess;
             LevelPlay.OnInitFailed += OnInitFailed;
 
+            // No ads on a TV (see Monetization): the ad SDK never starts there.
+            if (!Monetization.AdsAllowed)
+            {
+                Debug.Log("[Dockside] TV: ads are off.");
+                yield break;
+            }
+
             // Privacy settings must be applied BEFORE LevelPlay.Init()
             while (!Privacy.Ready) yield return null;
             // iOS: Apple's tracking prompt, after our own privacy question and before any ad SDK starts.

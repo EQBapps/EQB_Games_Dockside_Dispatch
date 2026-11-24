@@ -1,5 +1,6 @@
 {
     "levelNumber": 13,
+    "mode": 0,
     "seed": 4711023,
     "width": 6,
     "height": 6,
@@ -7,6 +8,7 @@
     "bufferSize": 5,
     "colorCount": 4,
     "casualWinRate": 0.6499999761581421,
+    "greedyWinRate": 0.6499999761581421,
     "containers": [
         {
             "id": 0,
@@ -114,7 +116,7 @@
             "y": 3,
             "length": 1,
             "color": 1,
-            "kind": 0,
+            "kind": 2,
             "lockId": -1,
             "keyId": -1
         },
@@ -124,7 +126,7 @@
             "y": 4,
             "length": 1,
             "color": 3,
-            "kind": 0,
+            "kind": 2,
             "lockId": -1,
             "keyId": -1
         },
@@ -224,7 +226,7 @@
             "y": 3,
             "length": 1,
             "color": 3,
-            "kind": 0,
+            "kind": 2,
             "lockId": -1,
             "keyId": -1
         },

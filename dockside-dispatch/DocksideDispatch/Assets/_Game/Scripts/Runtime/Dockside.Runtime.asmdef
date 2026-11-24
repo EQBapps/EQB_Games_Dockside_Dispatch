@@ -9,7 +9,9 @@
         "GameAnalyticsSDK",
         "Unity.Notifications.Android",
         "Unity.Notifications.iOS",
-        "Google.Play.Games"
+        "Google.Play.Games",
+        "Unity.Purchasing",
+        "Unity.Purchasing.Stores"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -18,6 +20,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.purchasing",
+            "expression": "5.0.0",
+            "define": "DOCKSIDE_IAP"
+        }
+    ],
     "noEngineReferences": false
 }
