@@ -20,6 +20,9 @@ namespace Dockside
         // Landscape: both cards side by side (scaled down). The selected one is larger and ringed in its mode's colour; the
         // other keeps its colours (so it never looks locked), a little smaller.
         private const float LandPitch = 700f, LandScale = 0.74f, LandSelected = 0.84f;
+        // A TV keeps a margin clear of overscan at the top and bottom, leaving less than the full 1080 units of height:
+        // the logo, cards and Play button shrink to match so the cards stay clear of the logo.
+        private static float LandFit => 1f - 2.4f * ScreenInfo.OverscanY;
 
         public event Action<GameMode> ModeChanged;   // the scene behind should switch to this mode
         public event Action<GameMode> PlayClicked;
@@ -143,11 +146,12 @@ namespace Dockside
             _landscape = landscape;
             if (landscape)
             {
-                _logo.localScale = Vector3.one * 0.8f; _logo.anchoredPosition = new Vector2(0, -30);
-                _viewport.anchoredPosition = new Vector2(0, 250); _viewport.sizeDelta = new Vector2(2 * LandPitch, 560);
-                _play.transform.localScale = Vector3.one * 0.85f;
+                float k = LandFit;
+                _logo.localScale = Vector3.one * 0.8f * k; _logo.anchoredPosition = new Vector2(0, -30);
+                _viewport.anchoredPosition = new Vector2(0, 250 * k); _viewport.sizeDelta = new Vector2(2 * LandPitch * k, 560);
+                _play.transform.localScale = Vector3.one * 0.85f * k;
                 ((RectTransform)_play.transform).anchoredPosition = new Vector2(0, 50);
-                for (int i = 0; i < 2; i++) _cardRts[i].anchoredPosition = new Vector2((i - 0.5f) * LandPitch, 0);
+                for (int i = 0; i < 2; i++) _cardRts[i].anchoredPosition = new Vector2((i - 0.5f) * LandPitch * k, 0);
                 _cards.anchoredPosition = Vector2.zero;
             }
             else
@@ -316,7 +320,7 @@ namespace Dockside
             if (landscape)
                 for (int i = 0; i < 2; i++)
                 {
-                    _cardRts[i].localScale = Vector3.one * (i == _index ? LandSelected : LandScale);
+                    _cardRts[i].localScale = Vector3.one * (i == _index ? LandSelected : LandScale) * LandFit;
                     _rings[i].enabled = i == _index;
                 }
         }

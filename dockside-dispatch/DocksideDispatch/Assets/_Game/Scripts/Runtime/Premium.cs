@@ -66,7 +66,11 @@ namespace Dockside
                 _store.OnStoreConnected += OnConnected;
                 _store.OnStoreDisconnected += d => Debug.LogWarning($"[Dockside] Store disconnected: {d.Message}");
                 _store.OnProductsFetched += OnProductsFetched;
-                _store.OnProductsFetchFailed += f => Debug.LogWarning($"[Dockside] Store products failed: {f.FailureReason}");
+                _store.OnProductsFetchFailed += f =>
+                {
+                    Debug.LogWarning($"[Dockside] Store products failed: {f.FailureReason}");
+                    Analytics.Error(false, "store", $"products fetch failed: {f.FailureReason}");
+                };
                 _store.OnPurchasesFetched += OnPurchasesFetched;
                 _store.OnPurchasesFetchFailed += f => Debug.LogWarning($"[Dockside] Store purchases failed: {f.Message}");
                 _store.OnPurchasePending += OnPurchasePending;
@@ -79,6 +83,7 @@ namespace Dockside
             catch (Exception e)
             {
                 Debug.LogWarning($"[Dockside] Store unavailable: {e.Message}");
+                Analytics.Error(false, "store", $"unavailable: {e.Message}");
             }
         }
 
@@ -110,6 +115,9 @@ namespace Dockside
         private static void OnPurchasePending(PendingOrder order)
         {
             if (!Contains(order)) return;
+            // A purchase made now (also one that was waiting for approval): count the money once. Purchases the store
+            // restores at launch come through OnPurchasesFetched instead, so they aren't counted again.
+            if (!Owned) ReportRevenue(order);
             SetOwned(true);
             _store.ConfirmPurchase(order);   // acknowledges it with the store (Play refunds unacknowledged purchases)
         }
@@ -117,7 +125,11 @@ namespace Dockside
         private static void OnPurchaseConfirmed(Order order)
         {
             if (!Contains(order)) return;
-            if (order is FailedOrder failed) Debug.LogWarning($"[Dockside] Premium confirmation failed: {failed.FailureReason} {failed.Details}");
+            if (order is FailedOrder failed)
+            {
+                Debug.LogWarning($"[Dockside] Premium confirmation failed: {failed.FailureReason} {failed.Details}");
+                Analytics.Error(true, "premium", $"confirmation failed: {failed.FailureReason} {failed.Details}");
+            }
             Analytics.Event("premium_purchase", ("tv", ScreenInfo.IsTv), ("price", Price ?? ""));
             Finish(true, null);
         }
@@ -127,8 +139,35 @@ namespace Dockside
             if (!Contains(order)) return;
             bool cancelled = order.FailureReason == PurchaseFailureReason.UserCancelled;
             Analytics.Event("premium_failed", ("reason", order.FailureReason.ToString()));
+            if (!cancelled) Analytics.Error(false, "premium", $"purchase failed: {order.FailureReason} {order.Details}");
             Finish(false, cancelled ? null : "The purchase didn't go through. You haven't been charged.");
         }
+
+        /// <summary>The Premium purchase as a GameAnalytics business event: the store price and currency, and the receipt.</summary>
+        private static void ReportRevenue(Order order)
+        {
+            var meta = _product?.metadata;
+            if (meta == null) return;
+            int amountMinor = (int)Math.Round(meta.localizedPrice * 100m);   // GameAnalytics takes the amount in cents
+            string receipt = null, signature = null;
+            try
+            {
+                // Unity's receipt wraps the store's own: {"Store":"GooglePlay","Payload":"{\"json\":...,\"signature\":...}"}
+                var unity = JsonUtility.FromJson<UnityReceipt>(order.Info.Receipt ?? "");
+                if (unity != null && unity.Store == "GooglePlay")
+                {
+                    var google = JsonUtility.FromJson<GooglePayload>(unity.Payload ?? "");
+                    receipt = google?.json; signature = google?.signature;
+                }
+                else if (unity != null && (unity.Store == "AppleAppStore" || unity.Store == "MacAppStore")) receipt = unity.Payload;
+            }
+            catch (Exception e) { Debug.LogWarning($"[Dockside] Couldn't read the Premium receipt: {e.Message}"); }
+            Analytics.Business(meta.isoCurrencyCode, amountMinor, "premium", ProductId, ScreenInfo.IsTv ? "tv_unlock" : "remove_ads",
+                receipt, signature);
+        }
+
+        [Serializable] private class UnityReceipt { public string Store; public string TransactionID; public string Payload; }
+        [Serializable] private class GooglePayload { public string json; public string signature; }
 
         private static void Finish(bool ok, string message)
         {

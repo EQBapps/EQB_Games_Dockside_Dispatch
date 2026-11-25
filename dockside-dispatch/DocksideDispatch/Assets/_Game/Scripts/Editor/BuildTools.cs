@@ -133,6 +133,7 @@ namespace Dockside.EditorTools
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
             PlayerSettings.Android.useCustomKeystore = false;    // Unity's debug key for test APKs; store builds use the upload key below
             PlayerSettings.Android.bundleVersionCode = Math.Max(PlayerSettings.Android.bundleVersionCode, 1);
+            ConfigureR8();
 
             string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "Android"));
             Directory.CreateDirectory(dir);
@@ -162,6 +163,22 @@ namespace Dockside.EditorTools
             Debug.Log($"[Dockside] Android build {s.result}: {apk} ({s.totalSize / (1024f * 1024f):0.0} MB) in {s.totalTime:mm\\:ss}, " +
                       $"{s.totalErrors} errors, {s.totalWarnings} warnings");
             return Finish(s.result == BuildResult.Succeeded, exitWhenDone);
+        }
+
+        /// <summary>
+        /// R8 for release builds (store and test APKs alike, so what is tested is what ships): shrinks and optimizes the
+        /// Java/Kotlin code. Assets/Plugins/Android/proguard-user.txt keeps what C# calls by name over JNI.
+        /// </summary>
+        private static void ConfigureR8()
+        {
+            PlayerSettings.Android.minifyRelease = true;
+            PlayerSettings.Android.minifyDebug = false;   // development (ad test suite) builds stay unshrunk
+            // "Custom Proguard File" has no public API; it makes Unity add Assets/Plugins/Android/proguard-user.txt.
+            var settings = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+            if (settings.Length == 0) return;
+            var so = new SerializedObject(settings[0]);
+            var prop = so.FindProperty("useCustomProguardFile");
+            if (prop != null && !prop.boolValue) { prop.boolValue = true; so.ApplyModifiedPropertiesWithoutUndo(); }
         }
 
         private static bool Finish(bool ok, bool exitWhenDone)

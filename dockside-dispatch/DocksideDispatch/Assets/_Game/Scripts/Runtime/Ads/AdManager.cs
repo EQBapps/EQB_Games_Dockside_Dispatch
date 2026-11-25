@@ -13,6 +13,7 @@ namespace Dockside
     ///    and frequency-capped (none until level <see cref="InterstitialFromLevel"/> of the mode being played is
     ///    complete, so new players and players trying Unload for the first time get ad-free levels; at most one every
     ///    <see cref="InterstitialCooldownSeconds"/> seconds and every <see cref="InterstitialEveryLevels"/> levels).
+    ///    A rewarded video the player watched restarts that cooldown: it counts as their ad break.
     /// Ad objects are created only after LevelPlay has initialized. Impression-level revenue (ILRD, SDK 9.5.0+)
     /// is collected per ad instance on a background thread and forwarded to Analytics on the main thread.
     /// Lives on the persistent "Game" object next to LevelPlayInitializer; ad unit IDs and bid floors are set in the
@@ -54,6 +55,7 @@ namespace Dockside
         private float _lastInterstitialTime = -9999f;
         private int _levelsSinceInterstitial;
         private float _rewardedRetryDelay = 5f, _interstitialRetryDelay = 5f;
+        private int _rewardedLoadError, _interstitialLoadError;   // LevelPlay code of the last failed load (0: none), for analytics
         private readonly ConcurrentQueue<LevelPlayImpressionData> _impressions = new ConcurrentQueue<LevelPlayImpressionData>();
 
         void Awake()
@@ -161,6 +163,7 @@ namespace Dockside
             if (!IsRewardedReady())
             {
                 Debug.LogWarning("[Ads] Rewarded ad is not ready yet");
+                Analytics.AdFailed(Analytics.AdKind.Rewarded, placement, _rewardedLoadError, false);
                 if (_rewarded != null) LoadRewarded();
                 return false;
             }
@@ -183,11 +186,13 @@ namespace Dockside
         {
             Debug.Log($"[Ads] Rewarded ad loaded ({adInfo.AdNetwork})");
             _rewardedRetryDelay = 5f;
+            _rewardedLoadError = 0;
         }
 
         private void OnRewardedLoadFailed(LevelPlayAdError error)
         {
             Debug.LogWarning($"[Ads] Rewarded ad failed to load: {error.ErrorMessage}");
+            _rewardedLoadError = error.ErrorCode;
             // Retry with exponential backoff (5s, 10s, 20s ... up to 2 min)
             Invoke(nameof(LoadRewarded), _rewardedRetryDelay);
             _rewardedRetryDelay = Mathf.Min(_rewardedRetryDelay * 2f, 120f);
@@ -198,6 +203,8 @@ namespace Dockside
         private void OnRewardedDisplayFailed(LevelPlayAdInfo adInfo, LevelPlayAdError error)
         {
             Debug.LogError($"[Ads] Rewarded ad failed to display: {error.ErrorMessage}");
+            Analytics.AdFailed(Analytics.AdKind.Rewarded, _rewardPlacement, error.ErrorCode, true);
+            Analytics.Error(false, "ads", $"rewarded failed to display ({error.ErrorCode}): {error.ErrorMessage}");
             // The player asked for the video and it failed on our side: grant the reward anyway (generous fallback).
             GrantReward("display_failed");
             LoadRewarded();
@@ -212,6 +219,9 @@ namespace Dockside
         private void OnRewardedClosed(LevelPlayAdInfo adInfo)
         {
             Debug.Log("[Ads] Rewarded ad closed");
+            // A video the player chose counts as their ad break: no interstitial for another full cooldown, so a second
+            // chance or a booster refill is never followed by a forced ad as soon as the level ends.
+            _lastInterstitialTime = Time.realtimeSinceStartup;
             LoadRewarded();   // eager preload: keep one ready for the next offer
             // OnAdRewarded is not guaranteed to arrive before OnAdClosed (the SDK's own editor mock sends it after), so a
             // close without a reward yet waits briefly for it before counting the video as skipped.
@@ -230,7 +240,11 @@ namespace Dockside
             }
         }
 
-        private void OnRewardedClicked(LevelPlayAdInfo adInfo) => Debug.Log("[Ads] Rewarded ad clicked");
+        private void OnRewardedClicked(LevelPlayAdInfo adInfo)
+        {
+            Debug.Log("[Ads] Rewarded ad clicked");
+            Analytics.AdClicked(Analytics.AdKind.Rewarded, _rewardPlacement);
+        }
 
         private void GrantReward(string how)
         {
@@ -259,6 +273,8 @@ namespace Dockside
             if (_interstitial == null || !_interstitial.IsAdReady())
             {
                 Debug.LogWarning("[Ads] Interstitial ad is not ready yet");
+                // The cap allowed an ad here but none was loaded: a missed impression.
+                Analytics.AdFailed(Analytics.AdKind.Interstitial, "level_end", _interstitialLoadError, false);
                 return false;
             }
             _lastInterstitialTime = Time.realtimeSinceStartup;
@@ -282,11 +298,13 @@ namespace Dockside
         {
             Debug.Log($"[Ads] Interstitial ad loaded ({adInfo.AdNetwork})");
             _interstitialRetryDelay = 5f;
+            _interstitialLoadError = 0;
         }
 
         private void OnInterstitialLoadFailed(LevelPlayAdError error)
         {
             Debug.LogWarning($"[Ads] Interstitial ad failed to load: {error.ErrorMessage}");
+            _interstitialLoadError = error.ErrorCode;
             Invoke(nameof(LoadInterstitial), _interstitialRetryDelay);
             _interstitialRetryDelay = Mathf.Min(_interstitialRetryDelay * 2f, 120f);
         }
@@ -296,6 +314,8 @@ namespace Dockside
         private void OnInterstitialDisplayFailed(LevelPlayAdInfo adInfo, LevelPlayAdError error)
         {
             Debug.LogError($"[Ads] Interstitial ad failed to display: {error.ErrorMessage}");
+            Analytics.AdFailed(Analytics.AdKind.Interstitial, "level_end", error.ErrorCode, true);
+            Analytics.Error(false, "ads", $"interstitial failed to display ({error.ErrorCode}): {error.ErrorMessage}");
             FinishInterstitial();
         }
 
@@ -313,7 +333,11 @@ namespace Dockside
             LoadInterstitial(); // have the next one ready
         }
 
-        private void OnInterstitialClicked(LevelPlayAdInfo adInfo) => Debug.Log("[Ads] Interstitial ad clicked");
+        private void OnInterstitialClicked(LevelPlayAdInfo adInfo)
+        {
+            Debug.Log("[Ads] Interstitial ad clicked");
+            Analytics.AdClicked(Analytics.AdKind.Interstitial, "level_end");
+        }
         #endregion
 
         // =====================================================================

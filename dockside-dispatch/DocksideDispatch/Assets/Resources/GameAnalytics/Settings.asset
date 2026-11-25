@@ -43,9 +43,16 @@ MonoBehaviour:
   InfoLogBuild: 1
   VerboseLogBuild: 0
   UseManualSessionHandling: 0
-  CustomDimensions01: []
-  CustomDimensions02: []
-  CustomDimensions03: []
+  CustomDimensions01:
+  - phone
+  - tablet
+  - tv
+  CustomDimensions02:
+  - free
+  - premium
+  CustomDimensions03:
+  - start1
+  - start3
   ResourceItemTypes:
   - level_reward
   - booster

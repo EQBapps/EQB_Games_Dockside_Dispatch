@@ -81,6 +81,7 @@ namespace Dockside
         private void OnInitFailed(LevelPlayInitError error)
         {
             Debug.LogError($"LevelPlay initialization failed: {error.ErrorMessage}");
+            Analytics.Error(true, "ads", $"LevelPlay init failed ({error.ErrorCode}): {error.ErrorMessage}");
         }
 
         void OnDestroy()

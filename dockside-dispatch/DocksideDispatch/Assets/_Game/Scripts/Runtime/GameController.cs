@@ -874,12 +874,16 @@ namespace Dockside
             // mode (where players learn it, and decide whether to stay) are always ad-free.
             bool unlockedNow = wasLocked && SaveData.UnloadUnlocked;
             bool offerReminders = ReminderOfferDue;
+            // A store rating card after the 6th cleared level, then now and then (ReviewPrompt); it takes this win's
+            // ad slot, and waits for any unlock card or reminder question to have had their turn.
+            bool askReview = !unlockedNow && !offerReminders && ReviewPrompt.Due;
             System.Action next = () =>
             {
                 // The win that unlocks Unload ends with the unlock card (no ad on top of the celebration).
                 if (unlockedNow) { ShowUnloadUnlocked(); return; }
                 // No ad straight after the reminder question either.
                 if (offerReminders) { StartLevel(SaveData.LevelFor(_mode)); return; }
+                if (askReview) { StartCoroutine(ReviewPrompt.Ask("win", () => StartLevel(SaveData.LevelFor(_mode)))); return; }
                 // A capped, opportunistic interstitial between levels; the game never waits for an ad.
                 var ads = AdManager.Instance;
                 if (!Monetization.Interstitials || ads == null || !ads.TryShowInterstitialAfterLevel(_levelNumber, () => StartLevel(SaveData.LevelFor(_mode))))
@@ -1274,6 +1278,8 @@ namespace Dockside
                 (PlayerPrefs.GetInt("dev_tv", 0) == 1 ? "TV mode: on (restart the game)" : "TV mode: off (restart the game)", blue,
                     () => { PlayerPrefs.SetInt("dev_tv", PlayerPrefs.GetInt("dev_tv", 0) == 1 ? 0 : 1); PlayerPrefs.Save(); _hud.HidePanels(); ShowTestTools(); }),
                 ("Input devices", blue, ShowInputDevices),
+                ($"Rating card now (asked {ReviewPrompt.Asks}x)", blue, () => { _hud.HidePanels(); StartCoroutine(ReviewPrompt.Ask("test", OnPause)); }),
+                ("Reset rating schedule", blue, () => { ReviewPrompt.DevReset(); _hud.HidePanels(); ShowTestTools(); }),
                 ("Back", grey, () => { _hud.HidePanels(); OnPause(); }),
             });
         }

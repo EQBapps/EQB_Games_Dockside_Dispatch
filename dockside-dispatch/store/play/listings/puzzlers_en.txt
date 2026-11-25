@@ -1,0 +1,28 @@
+Easy to start. Every 5th level fights back. Dockside Dispatch is a container-sorting puzzle where the real challenge is planning: which container goes now, which one waits in the holding bay, and which move fills the bay a turn too early.
+
+THE PUZZLE
+• Tap a container with a clear path to load it onto the ship of its colour. Full ships sail away.
+• No ship for that colour yet? It waits in the holding bay. Fill the bay and the level is lost.
+• Every 5th level is a Hard level: fewer berths, fuller yards, bonus coins when you clear it.
+• No timers. Every level is solvable; the question is whether you see the way through.
+
+TWISTS THAT CHANGE YOUR PLAN
+• Long containers take two slots, on a ship or in the bay.
+• Locked containers stay put until their key container is sent off.
+• Mystery containers hide their colour until they have a clear path out.
+
+TWO MODES
+• LOAD: fill the ships from the container yard.
+• UNLOAD: empty a full ship onto the trucks waiting on the dock road. Unlocks after level 5.
+
+BOOSTERS FOR WHEN YOU'RE STUCK
+• Extra Berth: one more holding-bay slot.
+• Crane Lift: pull a boxed-in container straight out.
+• Undo: take back your last move.
+
+• 200 hand-tuned levels across 20 famous ports
+• Colour-blind friendly: every colour has its own symbol
+• Plays on phones, tablets, Chromebooks and Android TV
+• Play offline, anytime
+
+Free to play, with optional ads. One optional purchase, Dockside Premium, removes the ads between levels on every device with your Google account, and unlocks the full game on Android TV.

@@ -1,0 +1,69 @@
+# Dockside Dispatch: R8 keep rules for release builds (Player Settings > Publishing > Minify Release, Custom Proguard File).
+#
+# R8 removes and renames Java/Kotlin code it can't see being used. C# reaches Java by class and method NAME over JNI
+# (AndroidJavaClass, AndroidJavaObject, AndroidJavaProxy), which R8 can't see, so every Java API called from C# is kept
+# here. Everything else (androidx, Play services internals, Kotlin, the ad networks, which ship their own consumer rules)
+# is still optimized. Unity's own rules (com.unity3d.player, GameActivity) come from proguard-unity.txt.
+#
+# Crash stack traces: the mapping file is bundled in the AAB, so Play Console shows readable Java traces. Unity also
+# saves a copy next to each build (Builds/Android/<build>_mapping.txt); keep it to retrace a logcat stack trace:
+#   retrace <build>_mapping.txt trace.txt
+
+-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*,SourceFile,LineNumberTable
+
+# --- Unity: player, Unity Ads / services (both called from C#) ---
+-keep class com.unity3d.** { *; }
+-dontwarn com.unity3d.**
+
+# --- Unity LevelPlay (ironSource) Unity bridge, plus LevelPlay's published rules ---
+-keep class com.ironsource.unity.** { *; }
+-keep class com.ironsource.adapters.** { *; }
+-keepclassmembers class com.ironsource.sdk.controller.IronSourceWebView$JSInterface { public *; }
+-keepclassmembers class * implements android.os.Parcelable { public static final android.os.Parcelable$Creator *; }
+-keep public class com.google.android.gms.ads.** { public *; }
+-keepattributes JavascriptInterface
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-dontwarn com.ironsource.mediationsdk.**
+-dontwarn com.ironsource.adapters.**
+
+# --- Unity IAP 5: talks to Google Play Billing directly over JNI (listeners are AndroidJavaProxy interfaces) ---
+-keep class com.android.billingclient.** { *; }
+-keep class com.unity.purchasing.** { *; }
+
+# --- Mobile Notifications (also in the package's consumer rules; kept whole for its callbacks) ---
+-keep class com.unity.androidnotifications.** { *; }
+
+# --- GameAnalytics ---
+-keep class com.gameanalytics.sdk.** { *; }
+-dontwarn com.gameanalytics.sdk.**
+
+# --- Google Play Games plugin (Assets/GooglePlayGames/com.google.play.games/Proguard/games.txt) ---
+-keep class com.google.android.gms.games.leaderboard.** { *; }
+-keep class com.google.android.gms.games.snapshot.** { *; }
+-keep class com.google.android.gms.games.achievement.** { *; }
+-keep class com.google.android.gms.games.event.** { *; }
+-keep class com.google.android.gms.games.stats.** { *; }
+-keep class com.google.android.gms.games.** { *; }
+-keep class com.google.android.gms.common.api.ResultCallback { *; }
+-keep class com.google.android.gms.signin.** { *; }
+-keep class com.google.android.gms.dynamic.** { *; }
+-keep class com.google.android.gms.dynamite.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+-keep class com.google.android.gms.security.** { *; }
+-keep class com.google.android.gms.base.** { *; }
+-keep class com.google.android.gms.actions.** { *; }
+-keep class com.google.games.bridge.** { *; }
+-keep class com.google.android.gms.common.ConnectionResult { *; }
+-keep class com.google.android.gms.common.GooglePlayServicesUtil { *; }
+-keep class com.google.android.gms.common.api.** { *; }
+-keep class com.google.android.gms.common.data.DataBufferUtils { *; }
+-keep class com.google.android.gms.nearby.** { *; }
+# The plugin's Nearby Connections bridge (com.google.games.bridge.*CallbackProxy) refers to the Nearby library, which
+# the game doesn't include or use.
+-dontwarn com.google.android.gms.nearby.**
+
+# --- Dockside's own Java (ReviewBridge, called from ReviewPrompt.cs; its Callback is an AndroidJavaProxy) ---
+-keep class com.eqbbusiness.dockside.** { *; }
+
+# --- Advertising ID (read from C# by the ads / analytics setup) ---
+-keep class com.google.android.gms.ads.identifier.** { *; }
