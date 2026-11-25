@@ -61,6 +61,18 @@ Made by `python Tools/make_store.py` from the captures in `store/raw/`.
 
 YouTube, unlisted or public, linked in the main listing. Landscape 16:9 for the listing; a 9:16 cut for Reels and Shorts.
 
+**Made (2026-11-25), in store/video:**
+- `dockside_promo_vertical_1080x1920.mp4`: 31 s, for Shorts, Reels and TikTok.
+- `dockside_promo_landscape_1920x1080.mp4`: 51 s, for YouTube and the Play listing.
+
+Both are real gameplay with captions, the game's own sounds and an original music bed, at -16 LUFS. The end card carries the Play listing QR code (store/marketing/qr), held still for scanning; in the vertical cut it sits clear of the Reels/Shorts caption bar. The landscape cut adds the TV and mode-menu scenes.
+
+To rebuild them:
+1. `python Tools/promo/rec.py <dir> all` records the clips from the open Editor. It changes the Editor's PlayerPrefs, so restore them afterwards.
+2. `python Tools/promo/make_video.py <dir> all`. Edit the captions in the VERTICAL and LANDSCAPE lists at the top of that file.
+
+The table below was the original storyboard. The filmed living-room TV shot is not in these cuts yet.
+
 | Time | Shot | On-screen text |
 |---|---|---|
 | 0–3 s | A full ship sails off at sunset (Hong Kong) | Dockside Dispatch |

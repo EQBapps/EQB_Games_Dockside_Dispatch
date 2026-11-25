@@ -35,9 +35,17 @@ namespace Dockside
             }
         }
 
+#if UNITY_EDITOR
+        /// <summary>Editor only: called for every sound played (the promo-video recorder logs these to rebuild the audio).</summary>
+        public static System.Action<string, float> EditorPlayed;
+#endif
+
         public static void Play(string name, float volume = 1f, float pitchJitter = 0.04f)
         {
             if (!Enabled) return;
+#if UNITY_EDITOR
+            EditorPlayed?.Invoke(name, volume);
+#endif
             if (!Clips.TryGetValue(name, out var clip))
             {
                 clip = Resources.Load<AudioClip>("Audio/" + name);
