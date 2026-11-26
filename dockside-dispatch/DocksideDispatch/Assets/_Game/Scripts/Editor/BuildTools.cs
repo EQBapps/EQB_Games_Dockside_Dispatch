@@ -14,7 +14,8 @@ namespace Dockside.EditorTools
     /// Play Store: Dockside > Build Play Store AAB (batch: -executeMethod Dockside.EditorTools.BuildTools.BuildPlayStoreAab), signed with the
     /// upload key described by a properties file outside the repo (see <see cref="SigningFile"/>).
     /// App Store: Dockside > Build iOS (Xcode project), run on the Mac with the project's platform set to iOS
-    /// (batch: -buildTarget iOS -executeMethod Dockside.EditorTools.BuildTools.BuildIos). See dockside-dispatch/BUILD_IOS.md.
+    /// (batch: -buildTarget iOS -executeMethod Dockside.EditorTools.BuildTools.BuildIos). Dockside > Build iOS Simulator (Xcode
+    /// project) makes a copy for Xcode's Simulator, to try every iPhone and iPad screen. See dockside-dispatch/BUILD_IOS.md.
     /// </summary>
     public static class BuildTools
     {
@@ -39,12 +40,21 @@ namespace Dockside.EditorTools
         /// so from another platform this switches first and asks to be run again.
         /// </summary>
         [MenuItem("Dockside/Build iOS (Xcode project)")]
-        public static void BuildIos()
+        public static void BuildIos() => BuildIosProject(false);
+
+        /// <summary>
+        /// The same Xcode project built for Xcode's Simulator (Builds/iOS/...-simulator), to try every iPhone and iPad
+        /// screen size on the Mac. Not for upload. The project goes back to the device SDK afterwards.
+        /// </summary>
+        [MenuItem("Dockside/Build iOS Simulator (Xcode project)")]
+        public static void BuildIosSimulator() => BuildIosProject(true);
+
+        private static void BuildIosProject(bool simulator)
         {
             if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS)
             {
                 EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
-                Debug.LogWarning("[Dockside] Switched the project to iOS. When it has finished compiling, run Dockside > Build iOS (Xcode project) again.");
+                Debug.LogWarning("[Dockside] Switched the project to iOS. When it has finished compiling, run the iOS build again.");
                 if (Application.isBatchMode) EditorApplication.Exit(1);
                 return;
             }
@@ -54,18 +64,32 @@ namespace Dockside.EditorTools
             ProjectSetup.ConfigureIos();
 
             string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "iOS",
-                $"DocksideDispatch-{PlayerSettings.bundleVersion}-{PlayerSettings.iOS.buildNumber}"));
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                $"DocksideDispatch-{PlayerSettings.bundleVersion}-{PlayerSettings.iOS.buildNumber}{(simulator ? "-simulator" : "")}"));
+            if (simulator)
             {
-                scenes = new[] { "Assets/_Game/Scenes/Main.unity" },
-                locationPathName = dir,
-                target = BuildTarget.iOS,
-                targetGroup = BuildTargetGroup.iOS,
-                options = BuildOptions.None,
-            });
+                PlayerSettings.iOS.sdkVersion = iOSSdkVersion.SimulatorSDK;
+                PlayerSettings.iOS.simulatorSdkArchitecture = AppleMobileArchitectureSimulator.Universal;   // Apple silicon and Intel Macs
+            }
+            BuildReport report;
+            try
+            {
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { "Assets/_Game/Scenes/Main.unity" },
+                    locationPathName = dir,
+                    target = BuildTarget.iOS,
+                    targetGroup = BuildTargetGroup.iOS,
+                    options = BuildOptions.None,
+                });
+            }
+            finally
+            {
+                if (simulator) { PlayerSettings.iOS.sdkVersion = iOSSdkVersion.DeviceSDK; AssetDatabase.SaveAssets(); }
+            }
             var s = report.summary;
-            Debug.Log($"[Dockside] iOS build {s.result}: {dir} in {s.totalTime:mm\\:ss}, {s.totalErrors} errors, {s.totalWarnings} warnings. " +
-                      "Next: pod install if needed, then open Unity-iPhone.xcworkspace in Xcode and Product > Archive.");
+            Debug.Log($"[Dockside] iOS {(simulator ? "Simulator " : "")}build {s.result}: {dir} in {s.totalTime:mm\\:ss}, {s.totalErrors} errors, {s.totalWarnings} warnings. " +
+                      (simulator ? "Next: open Unity-iPhone.xcworkspace, pick a simulator (e.g. iPhone SE, iPad Pro 13-inch) and Run."
+                                 : "Next: pod install if needed, then open Unity-iPhone.xcworkspace in Xcode and Product > Archive."));
             Finish(s.result == BuildResult.Succeeded, true);
         }
 

@@ -11,6 +11,7 @@ namespace Dockside.EditorTools
     /// Finishes the generated Xcode project for the App Store:
     ///  - Info.plist: the App Tracking Transparency prompt text (replaces the generic text an SDK may have added) and
     ///    ITSAppUsesNonExemptEncryption = NO (the game only uses HTTPS), so uploads skip the export-compliance question.
+    ///  - Orientations: iPhone portrait only; iPad all four (the game lays itself out for landscape on iPad).
     ///  - Links AppTrackingTransparency.framework into UnityFramework, where the native bridge (DocksideNative.mm) lives.
     ///  - Game Center capability (entitlement and GameKit) for achievements.
     /// Runs after the SDKs' own post-build steps. Only compiled while the project's platform is iOS, like theirs.
@@ -32,6 +33,9 @@ namespace Dockside.EditorTools
             plist.ReadFromFile(plistPath);
             plist.root.SetString("NSUserTrackingUsageDescription", TrackingPrompt);
             plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
+            SetOrientations(plist, "UISupportedInterfaceOrientations", "UIInterfaceOrientationPortrait");
+            SetOrientations(plist, "UISupportedInterfaceOrientations~ipad", "UIInterfaceOrientationPortrait",
+                "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight");
             plist.WriteToFile(plistPath);
 
             string projPath = PBXProject.GetPBXProjectPath(path);
@@ -44,7 +48,14 @@ namespace Dockside.EditorTools
             caps.AddGameCenter();
             caps.WriteToFile();
 
-            UnityEngine.Debug.Log("[Dockside] iOS post-build: tracking prompt text, encryption flag, AppTrackingTransparency, Game Center.");
+            UnityEngine.Debug.Log("[Dockside] iOS post-build: tracking prompt text, encryption flag, orientations (iPhone portrait, iPad all), " +
+                                  "AppTrackingTransparency, Game Center.");
+        }
+
+        private static void SetOrientations(PlistDocument plist, string key, params string[] values)
+        {
+            var array = plist.root.CreateArray(key);   // replaces Unity's list
+            foreach (var v in values) array.AddString(v);
         }
     }
 }

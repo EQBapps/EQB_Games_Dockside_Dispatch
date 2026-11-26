@@ -242,28 +242,35 @@ namespace Dockside.EditorTools
         }
 
         /// <summary>
-        /// iOS player settings for the App Store: iPhone only, iOS 15+, IL2CPP arm64, automatic signing, portrait, status bar
+        /// iOS player settings for the App Store: iPhone and iPad, iOS 15+, IL2CPP arm64, automatic signing, status bar
         /// hidden, and the home indicator needing a second swipe so the booster bar at the bottom isn't swiped away mid-level.
+        /// Orientation: Auto Rotation, as on Android. iPhones are held to portrait (ScreenInfo at launch, and IosPostProcess
+        /// allows only portrait in the iPhone's Info.plist); iPads turn freely and use the landscape layout when held sideways.
+        /// iPad windows may be resized (Split View, Slide Over, iPadOS 26 windowed apps): the game re-lays itself out for any
+        /// shape, and Apple deprecated the full-screen-only opt-out (UIRequiresFullScreen) in iPadOS 26 and stops honouring it
+        /// in iPadOS 27 (TN3192).
         /// The build number follows the Android version code, so both stores carry the same number for a release.
         /// </summary>
         [MenuItem("Dockside/Configure iOS")]
         public static void ConfigureIos()
         {
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, BundleId);
-            PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneOnly;
+            PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneAndiPad;
             PlayerSettings.iOS.targetOSVersionString = IosMinimumVersion;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetArchitecture(NamedBuildTarget.iOS, 1);   // arm64
             PlayerSettings.iOS.buildNumber = PlayerSettings.Android.bundleVersionCode.ToString();
             PlayerSettings.iOS.appleEnableAutomaticSigning = true;
             if (!string.IsNullOrEmpty(AppleTeamId)) PlayerSettings.iOS.appleDeveloperTeamID = AppleTeamId;
-            PlayerSettings.iOS.requiresFullScreen = true;
+            PlayerSettings.iOS.requiresFullScreen = false;   // resizable iPad windows (see above)
             PlayerSettings.iOS.hideHomeButton = false;
             PlayerSettings.iOS.deferSystemGesturesMode = UnityEngine.iOS.SystemGestureDeferMode.BottomEdge;
             PlayerSettings.statusBarHidden = true;
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
+            PlayerSettings.allowedAutorotateToPortrait = PlayerSettings.allowedAutorotateToPortraitUpsideDown = true;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = PlayerSettings.allowedAutorotateToLandscapeRight = true;
             AssetDatabase.SaveAssets();
-            Debug.Log($"[Dockside] iOS: {BundleId} {PlayerSettings.bundleVersion} ({PlayerSettings.iOS.buildNumber}), iPhone only, iOS {IosMinimumVersion}+, " +
+            Debug.Log($"[Dockside] iOS: {BundleId} {PlayerSettings.bundleVersion} ({PlayerSettings.iOS.buildNumber}), iPhone and iPad, iOS {IosMinimumVersion}+, " +
                       $"team {(string.IsNullOrEmpty(PlayerSettings.iOS.appleDeveloperTeamID) ? "not set (pick it in Xcode)" : PlayerSettings.iOS.appleDeveloperTeamID)}.");
         }
 

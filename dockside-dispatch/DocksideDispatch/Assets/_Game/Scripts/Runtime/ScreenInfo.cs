@@ -5,7 +5,7 @@ namespace Dockside
     /// <summary>
     /// What kind of screen the game is on, and which way round it may be played.
     /// Phones are portrait only. Large screens (smallest width of 600 dp or more: tablets, Chromebooks, laptops,
-    /// Google Play Games on PC) and TVs turn freely, and the HUD, mode menu and camera lay themselves out for
+    /// Google Play Games on PC; on iOS, iPads) and TVs turn freely, and the HUD, mode menu and camera lay themselves out for
     /// whichever shape the screen has (see <see cref="Landscape"/>).
     /// The Android manifest allows every orientation (Player Settings: Auto Rotation) so big screens open the way
     /// they are held; phones are locked to portrait here, before the splash screen.
@@ -88,7 +88,9 @@ namespace Dockside
                 IsTv = IsLargeScreen = false;
             }
 #elif UNITY_IOS && !UNITY_EDITOR
-            IsTv = IsLargeScreen = false;   // iPhone only for now
+            // iPad: either way round, like an Android tablet. iPhone: portrait only (its Info.plist allows only portrait).
+            IsTv = false;
+            IsLargeScreen = IosNative.IsPad();
 #else
             // Editor and desktop: follow the Game view / window, and let a test pretend to be a TV.
             IsTv = PlayerPrefs.GetInt("dev_tv", 0) == 1;

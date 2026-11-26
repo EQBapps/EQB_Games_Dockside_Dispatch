@@ -1,6 +1,7 @@
 // Dockside Dispatch: small iOS bridge used from C# (see Assets/_Game/Scripts/Runtime/IosNative.cs).
 //  - App Tracking Transparency: read the status and show Apple's tracking prompt.
 //  - Reduce Motion: the accessibility setting, so tutorial demos can hold still.
+//  - iPad or iPhone: iPads (and Macs running the iPad version) are played either way round, iPhones portrait only.
 // AppTrackingTransparency.framework is linked by Dockside.EditorTools.IosPostProcess.
 #import <UIKit/UIKit.h>
 #import <AppTrackingTransparency/AppTrackingTransparency.h>
@@ -38,6 +39,11 @@ int Dockside_TrackingResult(void)
 bool Dockside_ReduceMotion(void)
 {
     return UIAccessibilityIsReduceMotionEnabled();
+}
+
+bool Dockside_IsPad(void)
+{
+    return [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad;
 }
 
 }

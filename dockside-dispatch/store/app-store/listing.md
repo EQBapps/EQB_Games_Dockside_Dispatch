@@ -20,12 +20,12 @@ Text and answers for the App Store Connect app record. The build steps are in [`
 | Marketing URL | https://games.eqbsolutions.com/ |
 | Price | Free |
 | Availability | All countries and regions. The EU requires the trader declaration (below). |
-| iPad | Not supported in this version (the build is iPhone only) |
+| Devices | iPhone and iPad (iOS 15 or later). Untick Mac (Apple silicon) and Apple Vision Pro under Pricing and Availability. |
 
-## Version 0.7.4
+## Version 0.7.7 (first App Store version)
 
 **Promotional text** (170; can be changed without a new build):
-> Sort colourful containers, fill the ships and trucks, and keep the harbour moving across 20 famous ports. Now with Undo!
+> Sort colourful containers, fill the ships and trucks, and keep the harbour moving across 20 famous ports. Every 5th level is a Hard level!
 
 **Keywords** (100, exactly 100 used; words in the name are already indexed):
 > cargo,ship,container,sort,sorting,harbour,harbor,port,truck,crane,logic,brain,relaxing,offline,color
@@ -53,7 +53,9 @@ HANDY BOOSTERS
 SAIL AROUND THE WORLD
 Visit 20 famous ports, a new one every 5 levels: Hong Kong, Singapore, Dubai, Mumbai, Amsterdam, Los Angeles, Sydney, Rotterdam, Shanghai, New York, London, Hamburg, Tokyo, San Francisco, Rio de Janeiro, Cape Town, Istanbul, Venice, Barcelona and Seattle. The harbour follows your clock, from sunrise to starry nights.
 
-• 200 hand-tuned levels, 100 in each mode, that get trickier as you go
+• 200 hand-tuned levels, 100 in each mode, that get trickier as you go, with a Hard level every 5th level
+• Play on iPhone, or turn your iPad sideways for a bigger harbour
+• No timers: take as long as you like over each move
 • 17 Game Center achievements to earn
 • Colour-blind friendly: every colour has its own symbol
 • Relaxing sounds and a cosy, colourful art style
@@ -62,13 +64,15 @@ Visit 20 famous ports, a new one every 5 levels: Hong Kong, Singapore, Dubai, Mu
 Free to play, with optional ads. One optional purchase removes the ads between levels.
 ```
 
-**Screenshots:** 6.9" iPhone, 1320 × 2868 portrait: the five in [`screenshots/`](screenshots/), in upload order. They show Hong Kong (Load), Singapore (Unload), Amsterdam, Sydney and Shanghai, all captured from the 0.7.4 build with Undo. Apple accepts 1 to 10. iPad screenshots aren't needed while the build is iPhone only.
+**Screenshots** (made by `python Tools/make_appstore.py`; Apple accepts 1 to 10 per set and scales each set down for the smaller screens):
+- **iPhone 6.9" Display**, 1320 × 2868 portrait: the 7 in [`screenshots/iphone_6.9/`](screenshots/iphone_6.9/), in file order.
+- **iPad 13" Display**, 2752 × 2064 landscape: the 6 in [`screenshots/ipad_13/`](screenshots/ipad_13/), in file order.
 
 **App Review information**
 - Contact: name, phone and email of whoever answers Apple's questions.
 - Sign-in required: No.
 - Notes:
-  > No account or login. Ads are served through Unity LevelPlay; on first launch the game asks Apple's tracking question before ads start (players in the EU, EEA, UK and Switzerland first answer our personalised-ads question). Achievements use Game Center: Pause > Awards. Reminder notifications are opt-in, offered after an early win, and can be switched off under Pause. The Unload mode unlocks after Load level 5.
+  > No account or login. Ads are served through Unity LevelPlay; on first launch the game asks Apple's tracking question before ads start (players in the EU, EEA, UK and Switzerland first answer our personalised-ads question). Achievements use Game Center: Pause > Awards. Reminder notifications are opt-in, offered after an early win, and can be switched off under Pause. The Unload mode unlocks after Load level 5. The one in-app purchase (Remove ads, non-consumable) is under Pause > Remove ads, with Restore purchase on the same card. On iPad the game plays in portrait and landscape, and in resizable windows.
 
 ## App Privacy (nutrition labels)
 
@@ -91,17 +95,20 @@ The answers below match the Play Data safety form. Before submitting, check them
 
 ## Age rating
 
-Answer "None" for every content descriptor (no violence, gambling, mature themes, horror, medical or sexual content).
+Apple's questionnaire (updated in 2025, with 13+, 16+ and 18+ ratings) is under App Information › Age Rating. Answer "None" for every content descriptor (no violence, gambling, mature themes, horror, medical or wellness topics, or sexual content).
 - **Advertising:** Yes.
 - **Unrestricted web access, user-generated content, messaging:** No.
 - **Contests and loot boxes:** No.
+- **In-app purchases:** Yes (one, Remove ads).
+- **Parental controls or age assurance in the app:** No.
+- **Made for Kids:** No. The game is for a general audience and stays out of the Kids category.
 
 Expected rating: 4+.
 
 ## Other declarations
 - **Export compliance:** the build declares `ITSAppUsesNonExemptEncryption = NO` (the game only uses HTTPS), so App Store Connect doesn't ask again for each build.
 - **EU Digital Services Act:** declare EQB Business Solutions Private Limited as a **trader**. Its address, phone number and email are then shown on the EU App Store.
-- **In-app purchases:** one non-consumable, product ID `premium_unlock`, reference name "Dockside Premium", display name "Remove ads", description "No more ads between levels. Optional reward videos stay." It must be submitted with the first version that includes it (App Store Connect › the app › Monetization › In-App Purchases). The game has a Restore purchase button on iOS, as Apple requires.
+- **In-app purchases:** one non-consumable, product ID `premium_unlock`, reference name "Dockside Premium", display name "Remove ads", description "No more ads between levels. Optional reward videos stay.", price US$3.99 (Apple's nearest tier). It needs the Paid Applications agreement to be Active, and a review screenshot of the Premium card. It must be submitted with the first version that includes it (App Store Connect › the app › Monetization › In-App Purchases). The game has a Restore purchase button on iOS, as Apple requires.
 - **Subscriptions, in-app events:** none.
 
 ## Game Center achievements
